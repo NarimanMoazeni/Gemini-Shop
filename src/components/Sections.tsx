@@ -37,8 +37,9 @@ export function Benefits() {
     }, 140);
   };
 
-  // ترکینگ ماوس برای افکت اسپات‌لایت سبک Aceternity روی کارت‌های Bento
+  // ترکینگ ماوس برای افکت اسپات‌لایت سبک Aceternity روی کارت‌های Bento (فقط دسکتاپ)
   const handleFeatureMouseMove = (e: React.MouseEvent<HTMLElement>) => {
+    if (window.innerWidth <= 960) return;
     const rect = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty('--card-mouse-x', `${e.clientX - rect.left}px`);
     e.currentTarget.style.setProperty('--card-mouse-y', `${e.clientY - rect.top}px`);
@@ -54,25 +55,49 @@ export function Benefits() {
   };
 
   useEffect(() => {
+    const isMobile = window.innerWidth <= 960;
     const ctx = gsap.context(() => {
-      // انیمیشن استگر ورود ۴ کارت در ردیف
-      gsap.fromTo(
-        '.showcase-card',
-        { opacity: 0, y: 35, scale: 0.96 },
-        {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          duration: 0.75,
-          stagger: 0.12,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: containerRef.current,
-            start: 'top 82%',
-            toggleActions: 'play none none reverse',
-          },
-        }
-      );
+      if (isMobile) {
+        // انیمیشن روان و سبک ورود هر کارت به صورت مجزا در نمای موبایل
+        gsap.utils.toArray<HTMLElement>('.showcase-card').forEach((card) => {
+          gsap.fromTo(
+            card,
+            { opacity: 0, y: 22 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.45,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: card,
+                start: 'top 88%',
+                once: true,
+              },
+              clearProps: 'transform',
+            }
+          );
+        });
+      } else {
+        // انیمیشن استگر ورود ۴ کارت در ردیف برای دسکتاپ
+        gsap.fromTo(
+          '.showcase-card',
+          { opacity: 0, y: 35, scale: 0.96 },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.75,
+            stagger: 0.12,
+            ease: 'power3.out',
+            scrollTrigger: {
+              trigger: containerRef.current,
+              start: 'top 82%',
+              toggleActions: 'play none none reverse',
+            },
+            clearProps: 'transform',
+          }
+        );
+      }
     }, containerRef);
 
     return () => {
@@ -134,12 +159,14 @@ export function Benefits() {
                     />
                   </div>
 
-                  <div className="showcase-card__badge" style={{ background: item.badgeColor }}>
-                    {item.badge}
-                  </div>
+                  <div className="showcase-card__meta">
+                    <div className="showcase-card__badge" style={{ background: item.badgeColor }}>
+                      {item.badge}
+                    </div>
 
-                  <h3 className="showcase-card__short-title">{item.shortTitle}</h3>
-                  <p className="showcase-card__teaser">{item.teaser}</p>
+                    <h3 className="showcase-card__short-title">{item.shortTitle}</h3>
+                    <p className="showcase-card__teaser">{item.teaser}</p>
+                  </div>
                 </div>
 
                 {/* محتوای بازشونده با چیدمان ثابت و آماده (بدون ریفلو یا لرزش متن) */}

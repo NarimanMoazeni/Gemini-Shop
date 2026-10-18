@@ -100,8 +100,10 @@ export function StarScene() {
     const state = { p: 0 };
     const pointer = { x: 0, y: 0, sx: 0, sy: 0 };
     let start = { x: 0, y: 0, size: 400 };
+    let end = { x: 0, y: 0, size: 34 };
     let w = window.innerWidth,
       h = window.innerHeight;
+    let isMobile = w <= 860;
 
     // ---------- WebGL Renderer ----------
     let renderer: THREE.WebGLRenderer | null = null;
@@ -128,7 +130,7 @@ export function StarScene() {
     let mat: THREE.MeshPhysicalMaterial | null = null;
 
     if (renderer) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio, 1.6) : Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.0;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -186,11 +188,13 @@ export function StarScene() {
       scene.add(fillLight);
     }
 
-    // ---------- محاسبه مختصات شروع و پایان ----------
+    // ---------- محاسبه مختصات شروع و پایان با کش‌گذاری جهت حذف Layout Thrashing ----------
     const measure = () => {
       w = window.innerWidth;
       h = window.innerHeight;
+      isMobile = w <= 860;
       if (renderer) {
+        renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio, 1.6) : Math.min(window.devicePixelRatio, 2));
         renderer.setSize(w, h, false);
         camera.left = -w / 2;
         camera.right = w / 2;
@@ -198,7 +202,7 @@ export function StarScene() {
         camera.bottom = -h / 2;
         camera.updateProjectionMatrix();
       } else {
-        const dpr = Math.min(window.devicePixelRatio, 2);
+        const dpr = Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2);
         canvas.width = w * dpr;
         canvas.height = h * dpr;
       }
@@ -211,15 +215,24 @@ export function StarScene() {
           size: r.width,
         };
       }
+      const logo = document.getElementById('logo-star-slot');
+      if (logo) {
+        const lr = logo.getBoundingClientRect();
+        end = {
+          x: lr.left + lr.width / 2,
+          y: lr.top + lr.height / 2,
+          size: lr.width || (isMobile ? 30 : 36),
+        };
+      } else {
+        end = {
+          x: isMobile ? w - 46 : w - 60,
+          y: isMobile ? 30 : 40,
+          size: isMobile ? 30 : 36,
+        };
+      }
     };
 
     const render = () => {
-      const logo = document.getElementById('logo-star-slot');
-      const lr = logo?.getBoundingClientRect();
-      const end = lr
-        ? { x: lr.left + lr.width / 2, y: lr.top + lr.height / 2, size: lr.width }
-        : { x: w - 60, y: 40, size: 34 };
-
       const p = state.p;
       const m = ease(p);
       const x = lerp(start.x, end.x, m);
@@ -230,8 +243,9 @@ export function StarScene() {
 
       pointer.sx += (pointer.x - pointer.sx) * 0.08;
       pointer.sy += (pointer.y - pointer.sy) * 0.08;
-      const tiltY = reduced ? 0 : pointer.sx * 0.28 * idle;
-      const tiltX = reduced ? 0 : Math.sin(p * Math.PI) * 0.18 - pointer.sy * 0.18 * idle;
+      // در نمای موبایل انحراف با حرکت تاچ غیرفعال می‌شود تا لرزش بصری رخ ندهد
+      const tiltY = (reduced || isMobile) ? 0 : pointer.sx * 0.28 * idle;
+      const tiltX = (reduced || isMobile) ? 0 : Math.sin(p * Math.PI) * 0.18 - pointer.sy * 0.18 * idle;
 
       if (renderer) {
         star.position.set(x - w / 2, h / 2 - y, 0);
@@ -243,7 +257,7 @@ export function StarScene() {
       }
     };
 
-    // ---------- اسکرول با GSAP ScrollTrigger ----------
+    // ---------- اسکرول با GSAP ScrollTrigger متناسب‌سازی‌شده برای موبایل و دسکتاپ ----------
     const tween = gsap.to(state, {
       p: 1,
       ease: 'none',
@@ -251,8 +265,8 @@ export function StarScene() {
       scrollTrigger: {
         trigger: document.body,
         start: 'top top',
-        end: () => `+=${Math.round(window.innerHeight * 0.95)}`,
-        scrub: reduced ? true : 0.7,
+        end: () => `+=${Math.round(isMobile ? Math.min(window.innerHeight * 0.65, 420) : window.innerHeight * 0.95)}`,
+        scrub: reduced ? true : (isMobile ? 0.12 : 0.7),
         invalidateOnRefresh: true,
         onRefresh: () => {
           measure();
@@ -262,6 +276,7 @@ export function StarScene() {
     });
 
     const onMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' || isMobile) return;
       pointer.x = (e.clientX / w - 0.5) * 2;
       pointer.y = (e.clientY / h - 0.5) * 2;
     };

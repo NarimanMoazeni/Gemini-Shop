@@ -151,6 +151,10 @@
   opacity: 0.88;
 }
 
+.showcase-card__meta {
+  display: contents;
+}
+
 /* هدر فشرده و یکپارچه کارت - بوم با ابعاد پایدار جهت جلوگیری مطلق از پرش و تغییر خطوط متن هنگام انیمیشن */
 .showcase-card__header {
   display: flex;
@@ -375,43 +379,105 @@
     height: auto !important;
     max-height: none !important;
     min-height: 0;
-    gap: 16px;
+    gap: 14px;
+    perspective: none;
   }
   .showcase-card {
     flex: none !important;
     height: auto !important;
     width: 100%;
+    padding: 16px 18px;
+    border-radius: 20px;
+    align-items: stretch;
+    text-align: right;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    will-change: transform, opacity;
+  }
+  .showcase-card:hover {
+    transform: none; /* جلوگیری از پرش در لمس موبایل */
   }
   .showcase-card.is-expanded {
     flex: none !important;
     height: auto !important;
+    transform: none !important;
+    background: #ffffff;
+    border-color: rgba(99, 102, 241, 0.45);
   }
   .showcase-card__header {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+    display: flex;
     flex-direction: row !important;
     align-items: center !important;
-    text-align: start !important;
-    flex-wrap: wrap;
+    text-align: right !important;
+    flex-wrap: nowrap;
     gap: 14px;
+    margin: 0;
   }
-  .showcase-card__teaser {
-    opacity: 1 !important;
-    max-height: none !important;
-    display: block !important;
+  .showcase-card__logo-wrap {
+    width: 58px;
+    height: 58px;
+    flex-shrink: 0;
+  }
+  .showcase-card__logo {
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
   }
   .showcase-card__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: right;
     flex: 1;
+    min-width: 0;
+    gap: 3px;
+  }
+  .showcase-card__badge {
+    padding: 3px 10px;
+    font-size: 10.5px;
+  }
+  .showcase-card__short-title {
+    font-size: 15px;
+    margin-top: 1px;
+    white-space: normal;
+    text-align: right;
+    width: 100%;
+  }
+  .showcase-card__teaser {
+    font-size: 12px;
+    height: auto;
+    margin-top: 1px;
+    text-align: right;
+    display: block !important;
+    max-height: none !important;
+    opacity: 0.9 !important;
+  }
+  .showcase-card__drawer {
+    transition: opacity 0.25s ease, max-height 0.35s ease, transform 0.25s ease;
+  }
+  .showcase-card.is-expanded .showcase-card__drawer {
+    max-height: 500px; /* فضای کافی بدون برش خوردن خطوط در موبایل */
+    margin-top: 12px;
   }
   .showcase-card__drawer-inner {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+    padding-inline: 0;
+  }
+  .showcase-card__hint {
+    margin-top: 10px;
+    padding-top: 8px;
+    font-size: 11.5px;
+    justify-content: flex-end;
   }
   .showcase-strip:has(.showcase-card.is-expanded) .showcase-card:not(.is-expanded) {
     flex: none !important;
-    opacity: 1;
+    opacity: 0.95;
   }
 }
 

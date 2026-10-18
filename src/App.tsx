@@ -49,6 +49,13 @@ export default function App() {
       ) {
         setAdminOpen(true);
       }
+      if (
+        hash === '#profile' ||
+        hash === '#user-profile' ||
+        params.get('portal') === 'profile'
+      ) {
+        setProfileOpen(true);
+      }
     };
 
     checkAdminTrigger();

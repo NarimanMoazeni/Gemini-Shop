@@ -6,7 +6,10 @@
   height: 100dvh;
   pointer-events: none;
   z-index: var(--z-star);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+  transition: opacity .2s ease;
 }
 
-.star-canvas { transition: opacity .2s ease; }
 .menu-open .star-canvas { opacity: 0; }

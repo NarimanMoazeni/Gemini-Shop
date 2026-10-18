@@ -1136,40 +1136,11 @@
   transform: translateY(-1px);
 }
 
-/* ==================== ۶. واکنش‌گرایی موبایل (Mobile Responsive) ==================== */
+/* ==================== ۶. واکنش‌گرایی موبایل و تبلت (Mobile & Tablet Ergonomics) ==================== */
 @media (max-width: 900px) {
-  .portal-window {
-    height: 94vh;
-    flex-direction: column;
-    border-radius: 20px;
-  }
-
-  .portal-sidebar {
-    width: 100%;
-    flex-direction: row;
-    align-items: center;
-    overflow-x: auto;
-    padding: 12px 16px;
-    border-inline-end: none;
-    border-bottom: 1px solid rgba(208, 207, 235, 0.6);
-  }
-
-  .portal-sidebar__brand {
-    border-bottom: none;
-    padding: 0 8px 0 0;
-    margin-bottom: 0;
-  }
-
-  .portal-sidebar__nav {
-    flex-direction: row;
-  }
-
-  .portal-sidebar__footer {
-    display: none;
-  }
-
   .user-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px;
   }
 
   .user-dashboard-split {
@@ -1177,36 +1148,242 @@
   }
 }
 
-@media (max-width: 1100px) {
-  .user-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
-  }
-}
-
-@media (max-width: 580px) {
+@media (max-width: 768px) {
   .portal-overlay {
     padding: 0;
     align-items: flex-end;
   }
 
   .portal-window {
-    height: 94vh;
-    border-radius: 24px 24px 0 0;
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 20px 20px 0 0;
+    border-bottom: none;
+    flex-direction: column;
+    overflow: hidden;
   }
 
-  .user-stats-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .portal-main-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    order: 2;
   }
 
-  .user-stat-card {
-    padding: 16px 18px;
-    min-height: 92px;
+  .portal-content-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 14px 24px;
+  }
+
+  /* نوار ارگونومیک نویگیشن در پایین صفحه برای انگشت شست (Thumb-Friendly Bottom Navigation) */
+  .portal-sidebar {
+    order: 3;
+    width: 100%;
+    height: auto;
+    min-height: 58px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 6px 6px env(safe-area-inset-bottom, 8px) 6px;
+    background: #ffffff;
+    border-inline-end: none;
+    border-top: 1px solid rgba(208, 207, 235, 0.75);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.05);
+    flex-shrink: 0;
+    z-index: 30;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .portal-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .portal-sidebar__brand,
+  .portal-sidebar__footer {
+    display: none !important;
+  }
+
+  .portal-sidebar__nav {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    gap: 2px;
+  }
+
+  .sidebar-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 2px;
+    gap: 3px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+    min-width: 52px;
+    white-space: nowrap;
+    position: relative;
+    border: none;
+  }
+
+  .sidebar-nav-item.is-active {
+    background: #eef2ff;
+    color: #4f46e5;
+  }
+
+  .sidebar-nav-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-badge-pill,
+  .nav-badge-amber,
+  .nav-badge-neutral {
+    position: absolute;
+    top: 2px;
+    right: 50%;
+    transform: translateX(14px);
+    font-size: 8.5px;
+    padding: 0 4px;
+    line-height: 1.4;
+  }
+
+  /* نوار بالای داشبورد کاربر */
+  .portal-topbar {
+    padding: 8px 12px;
+    height: 52px;
+    gap: 6px;
+    flex-shrink: 0;
+    order: 1;
+    background: #ffffff;
+  }
+
+  .portal-topbar__user {
+    gap: 6px;
+  }
+
+  .portal-user-pill {
+    padding: 3px 8px 3px 4px;
+    gap: 6px;
+  }
+
+  .portal-user-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .portal-user-meta {
+    max-width: 100px;
+  }
+
+  .portal-user-name {
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .portal-user-sub-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+
+  .portal-topbar__links {
+    gap: 6px;
   }
 
   .portal-topbar__links .topbar-link-btn {
-    display: none;
+    display: none !important;
+  }
+
+  .topbar-cta-pill {
+    padding: 5px 10px;
+    font-size: 11px;
+    height: 30px;
+  }
+
+  .portal-close-circle {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* چیدمان کارت‌های آمار به صورت ۲ در ۲ منظم و شکیل */
+  .user-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .user-stat-card {
+    padding: 12px 10px !important;
+    min-height: 84px !important;
+    border-radius: 16px !important;
+    gap: 8px !important;
+  }
+
+  .stat-label {
+    font-size: 11.5px !important;
+    white-space: normal !important;
+    line-height: 1.35 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .stat-value {
+    font-size: 16.5px !important;
+  }
+
+  .stat-sub {
+    font-size: 10px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .user-stat-card__icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .user-stat-card__icon svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .user-aurora-card {
+    padding: 14px 16px !important;
+    border-radius: 16px !important;
+    gap: 12px !important;
+  }
+
+  .aurora-card-icon {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+  }
+
+  .aurora-card-content p {
+    font-size: 12px !important;
+  }
+
+  .dashboard-header-title {
+    margin-bottom: 12px !important;
+  }
+
+  .dashboard-title-text h2 {
+    font-size: 15px !important;
   }
 }
 
