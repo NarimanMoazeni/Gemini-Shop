@@ -1253,6 +1253,24 @@ export async function handleApiRequest(req, res) {
       return sendJson(res, 200, { success: true, message: 'رمز عبور با موفقیت تغییر یافت.' });
     }
 
+    // ۱۸. پاکسازی کامل دیتابیس و ریست به حالت صفر اولیه (فقط مدیر ارشد)
+    if (pathname === '/api/admin/zero-state-reset' && req.method === 'POST') {
+      if (!isHeadAdmin(req)) {
+        return sendJson(res, 403, { error: 'Forbidden: تنها مدیر ارشد مجاز به پاکسازی کامل دیتابیس است.' });
+      }
+
+      db.orders = [];
+      db.chatMessages = [];
+      db.users = [];
+      activeOtpStore.clear();
+      saveDatabase(db);
+
+      return sendJson(res, 200, {
+        success: true,
+        message: 'تمام اطلاعات آزمایشی، کاربران، سفارشات و پیام‌ها پاکسازی شدند و دیتابیس به حالت صفر (Zero-State) بازگشت.',
+      });
+    }
+
     // روت پیدا نشد
     return sendJson(res, 404, { error: 'Endpoint not found' });
   } catch (err) {

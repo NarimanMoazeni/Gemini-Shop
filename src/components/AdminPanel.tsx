@@ -557,7 +557,7 @@ export function AdminPanel({ open, onClose }: Props) {
   };
 
   // پاکسازی کامل دیتابیس و داده‌های تستی (Zero-State)
-  const handleZeroStateReset = () => {
+  const handleZeroStateReset = async () => {
     if (!confirm('آیا مطمئن هستید که می‌خواهید تمام سفارشات، پیام‌های چت و اطلاعات آزمایشی را پاکسازی کنید و سایت را به حالت کاملاً صفر (Zero-State) برگردانید؟')) {
       return;
     }
@@ -566,6 +566,18 @@ export function AdminPanel({ open, onClose }: Props) {
     localStorage.removeItem('gemini_pro_chat_sessions_v1');
     localStorage.removeItem('gemini_customer_profile_v1');
     localStorage.removeItem('gemini_pro_user_session_id');
+    localStorage.removeItem('gemini_all_registered_emails');
+    sessionStorage.clear();
+
+    try {
+      const token = localStorage.getItem('gemini_admin_token') || sessionStorage.getItem('gemini_admin_token');
+      if (token) {
+        await fetch('/api/admin/zero-state-reset', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => {});
+      }
+    } catch {}
 
     setOrders([]);
     setChatMessages([]);
