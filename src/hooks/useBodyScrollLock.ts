@@ -8,10 +8,15 @@ export function useBodyScrollLock(isLocked: boolean) {
   useEffect(() => {
     if (!isLocked) return;
 
+    const scrollY = window.scrollY;
+    const isMobile = window.innerWidth <= 900;
     const originalBodyOverflow = document.body.style.overflow;
     const originalHtmlOverflow = document.documentElement.style.overflow;
     const originalBodyOverscroll = document.body.style.overscrollBehavior;
     const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const originalBodyPosition = document.body.style.position;
+    const originalBodyTop = document.body.style.top;
+    const originalBodyWidth = document.body.style.width;
     const originalPaddingRight = document.body.style.paddingRight;
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
 
@@ -20,7 +25,13 @@ export function useBodyScrollLock(isLocked: boolean) {
     document.documentElement.style.overscrollBehavior = 'none';
     document.body.style.overscrollBehavior = 'none';
 
-    if (scrollbarWidth > 0) {
+    if (isMobile) {
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    }
+
+    if (scrollbarWidth > 0 && !isMobile) {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
@@ -30,6 +41,13 @@ export function useBodyScrollLock(isLocked: boolean) {
       document.documentElement.style.overscrollBehavior = originalHtmlOverscroll;
       document.body.style.overscrollBehavior = originalBodyOverscroll;
       document.body.style.paddingRight = originalPaddingRight;
+
+      if (isMobile) {
+        document.body.style.position = originalBodyPosition;
+        document.body.style.top = originalBodyTop;
+        document.body.style.width = originalBodyWidth;
+        window.scrollTo(0, scrollY);
+      }
     };
   }, [isLocked]);
 }

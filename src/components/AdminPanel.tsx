@@ -16,6 +16,7 @@ import {
 } from '../services/orderStorage';
 import { Icon } from './Icon';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { hashPassword, verifyPassword } from '../lib/crypto';
 import './AdminPanel.css';
 
 interface Props {
@@ -28,6 +29,7 @@ export interface AdminUser {
   username: string;
   fullName: string;
   role: 'head_admin' | 'regular_admin';
+  passwordHash?: string;
   createdAt?: string;
 }
 
@@ -38,6 +40,23 @@ export function AdminPanel({ open, onClose }: Props) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(null);
   const [adminToken, setAdminToken] = useState<string>('');
+
+  // وضعیت راه‌اندازی و انتخاب رمز عبور مدیر ارشد (Head Admin Setup)
+  const [isSetupMode, setIsSetupMode] = useState(false);
+  const [setupFullName, setSetupFullName] = useState('نریمان موذنی (مدیر ارشد)');
+  const [setupPassword, setSetupPassword] = useState('');
+  const [setupConfirm, setSetupConfirm] = useState('');
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [setupLoading, setSetupLoading] = useState(false);
+
+  // تغییر رمز عبور مدیر ارشد در تنظیمات
+  const [currentHeadPass, setCurrentHeadPass] = useState('');
+  const [newHeadPass, setNewHeadPass] = useState('');
+  const [confirmNewHeadPass, setConfirmNewHeadPass] = useState('');
+  const [passwordChangeToast, setPasswordChangeToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  // پیام پاکسازی و بازنشانی دیتابیس صفر
+  const [zeroStateResetToast, setZeroStateResetToast] = useState(false);
 
   // فرم ورود
   const [username, setUsername] = useState('admin');
@@ -219,53 +238,156 @@ export function AdminPanel({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  // ورود به پنل ادمین
+  // راه‌اندازی و تعیین رمز عبور اختصاصی مدیر ارشد (Head Admin First Setup)
+  const handleSetupHeadAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError(null);
+
+    if (setupPassword.length < 6) {
+      setSetupError('رمز عبور مدیر ارشد باید حداقل ۶ کاراکتر باشد.');
+      return;
+    }
+    if (setupPassword !== setupConfirm) {
+      setSetupError('تکرار رمز عبور با رمز وارد شده همخوانی ندارد.');
+      return;
+    }
+
+    setSetupLoading(true);
+    try {
+      const hash = await hashPassword(setupPassword);
+      localStorage.setItem('gemini_head_admin_hash', hash);
+
+      const headUser: AdminUser = {
+        id: 'adm_head_1',
+        username: 'admin',
+        fullName: setupFullName.trim() || 'نریمان موذنی (مدیر ارشد)',
+        role: 'head_admin',
+        createdAt: new Date().toISOString(),
+      };
+
+      // ذخیره مدیر ارشد در لیست ادمین‌های معتبر سیستم
+      const localAdminsRaw = localStorage.getItem('gemini_local_admins');
+      let localAdmins: any[] = [];
+      if (localAdminsRaw) {
+        try {
+          localAdmins = JSON.parse(localAdminsRaw).filter((a: any) => a.username.toLowerCase() !== 'admin');
+        } catch {}
+      }
+      localAdmins.unshift({ ...headUser, passwordHash: hash });
+      localStorage.setItem('gemini_local_admins', JSON.stringify(localAdmins));
+      setAdminsList(localAdmins);
+
+      // همگام‌سازی با سرور در صورت دسترسی
+      try {
+        await fetch(`${API_BASE}/admin/setup-head`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            password: setupPassword,
+            fullName: headUser.fullName,
+          }),
+        });
+      } catch {}
+
+      setIsAuthenticated(true);
+      setCurrentAdmin(headUser);
+      sessionStorage.setItem('gemini_admin_auth', 'true');
+      sessionStorage.setItem('gemini_admin_user', JSON.stringify(headUser));
+      setIsSetupMode(false);
+      setSetupPassword('');
+      setSetupConfirm('');
+    } catch (err: any) {
+      setSetupError('خطا در ذخیره‌سازی رمز عبور امن: ' + (err.message || ''));
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
+  // ورود به پنل ادمین (پشتیبانی از سرور، مدیر ارشد سفارشی و ادمین‌های زیرمجموعه)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginLoading(true);
 
+    const cleanUsername = username.trim().toLowerCase();
+
+    // تلاش اول: بررسی از طریق سرور API
     try {
       const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: username.trim(),
+          username: cleanUsername,
           password,
         }),
       });
 
       const data = await res.json();
-      setLoginLoading(false);
-
       if (res.ok && data.success) {
+        setLoginLoading(false);
         setIsAuthenticated(true);
         setCurrentAdmin(data.admin);
         setAdminToken(data.token);
         sessionStorage.setItem('gemini_admin_auth', 'true');
         sessionStorage.setItem('gemini_admin_token', data.token);
         sessionStorage.setItem('gemini_admin_user', JSON.stringify(data.admin));
-      } else {
-        setLoginError(data.error || 'نام کاربری یا رمز عبور مدیریت اشتباه است.');
+        return;
       }
-    } catch {
-      // شبیه‌ساز ورود در محیط کلاینت
-      setLoginLoading(false);
-      if (username === 'admin' && (password === 'admin123' || password === 'admin' || password === '123456')) {
-        const mockAdmin: AdminUser = {
+    } catch {}
+
+    setLoginLoading(false);
+
+    // ۱. بررسی مدیر ارشد (head_admin)
+    if (cleanUsername === 'admin') {
+      const headHash = localStorage.getItem('gemini_head_admin_hash');
+      if (!headHash) {
+        setIsSetupMode(true);
+        setLoginError('هنوز رمز عبور مدیر ارشد تعیین نشده است. لطفاً ابتدا رمز خود را تنظیم فرمایید.');
+        return;
+      }
+
+      const isMatch = await verifyPassword(password, headHash);
+      if (isMatch) {
+        const headAdmin: AdminUser = {
           id: 'adm_head_1',
           username: 'admin',
           fullName: 'نریمان موذنی (مدیر ارشد)',
           role: 'head_admin',
         };
         setIsAuthenticated(true);
-        setCurrentAdmin(mockAdmin);
+        setCurrentAdmin(headAdmin);
         sessionStorage.setItem('gemini_admin_auth', 'true');
-        sessionStorage.setItem('gemini_admin_user', JSON.stringify(mockAdmin));
-      } else {
-        setLoginError('نام کاربری یا رمز عبور نامعتبر است.');
+        sessionStorage.setItem('gemini_admin_user', JSON.stringify(headAdmin));
+        return;
       }
     }
+
+    // ۲. بررسی ادمین‌های زیرمجموعه در دیتابیس
+    const localAdminsRaw = localStorage.getItem('gemini_local_admins');
+    if (localAdminsRaw) {
+      try {
+        const allAdmins = JSON.parse(localAdminsRaw);
+        const matched = allAdmins.find((a: any) => a.username.toLowerCase() === cleanUsername);
+        if (matched && matched.passwordHash) {
+          const isMatch = await verifyPassword(password, matched.passwordHash);
+          if (isMatch) {
+            const adminUser: AdminUser = {
+              id: matched.id,
+              username: matched.username,
+              fullName: matched.fullName,
+              role: matched.role || 'regular_admin',
+            };
+            setIsAuthenticated(true);
+            setCurrentAdmin(adminUser);
+            sessionStorage.setItem('gemini_admin_auth', 'true');
+            sessionStorage.setItem('gemini_admin_user', JSON.stringify(adminUser));
+            return;
+          }
+        }
+      } catch {}
+    }
+
+    setLoginError('نام کاربری یا رمز عبور اشتباه است.');
   };
 
   const handleLogout = () => {
@@ -277,11 +399,23 @@ export function AdminPanel({ open, onClose }: Props) {
     onClose();
   };
 
-  // افزودن ادمین جدید برای head_admin
+  // افزودن ادمین جدید توسط head_admin
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddAdminError(null);
     setAddAdminLoading(true);
+
+    const cleanUsername = newAdminUsername.trim().toLowerCase();
+    if (!cleanUsername || cleanUsername.length < 3) {
+      setAddAdminError('نام کاربری باید حداقل ۳ کاراکتر انگلیسی باشد.');
+      setAddAdminLoading(false);
+      return;
+    }
+    if (!newAdminPassword || newAdminPassword.length < 6) {
+      setAddAdminError('رمز عبور باید حداقل ۶ کاراکتر باشد.');
+      setAddAdminLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE}/admin/users`, {
@@ -291,7 +425,7 @@ export function AdminPanel({ open, onClose }: Props) {
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
-          username: newAdminUsername.trim(),
+          username: cleanUsername,
           password: newAdminPassword,
           fullName: newAdminFullName.trim(),
           role: newAdminRole,
@@ -299,57 +433,148 @@ export function AdminPanel({ open, onClose }: Props) {
       });
 
       const data = await res.json();
-      setAddAdminLoading(false);
-
       if (res.ok && data.success) {
+        setAddAdminLoading(false);
         setShowAddAdminModal(false);
         setNewAdminUsername('');
         setNewAdminFullName('');
         setNewAdminPassword('');
         setNewAdminRole('regular_admin');
         loadAdminsList();
-      } else {
-        setAddAdminError(data.error || 'خطا در ثبت ادمین جدید.');
+        return;
       }
-    } catch {
-      setAddAdminLoading(false);
-      const newAdmin: AdminUser = {
-        id: `adm_${Date.now()}`,
-        username: newAdminUsername.trim(),
-        fullName: newAdminFullName.trim(),
-        role: newAdminRole,
-        createdAt: new Date().toISOString(),
-      };
-      const updated = [...adminsList, newAdmin];
-      setAdminsList(updated);
-      localStorage.setItem('gemini_local_admins', JSON.stringify(updated));
-      setShowAddAdminModal(false);
-      setNewAdminUsername('');
-      setNewAdminFullName('');
-      setNewAdminPassword('');
+    } catch {}
+
+    // ذخیره در محیط لوکال با هش امن سالت‌دار (Salted SHA-256)
+    setAddAdminLoading(false);
+    const passwordHash = await hashPassword(newAdminPassword);
+    const newAdmin: AdminUser = {
+      id: `adm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      username: cleanUsername,
+      fullName: newAdminFullName.trim() || cleanUsername,
+      role: newAdminRole,
+      passwordHash,
+      createdAt: new Date().toISOString(),
+    };
+
+    const localAdminsRaw = localStorage.getItem('gemini_local_admins');
+    let localAdmins: any[] = [];
+    if (localAdminsRaw) {
+      try {
+        localAdmins = JSON.parse(localAdminsRaw);
+      } catch {}
     }
+
+    if (localAdmins.some((a) => a.username.toLowerCase() === cleanUsername)) {
+      setAddAdminError('این نام کاربری قبلاً در سیستم ثبت شده است.');
+      return;
+    }
+
+    localAdmins.push(newAdmin);
+    setAdminsList(localAdmins);
+    localStorage.setItem('gemini_local_admins', JSON.stringify(localAdmins));
+    setShowAddAdminModal(false);
+    setNewAdminUsername('');
+    setNewAdminFullName('');
+    setNewAdminPassword('');
   };
 
   // حذف ادمین توسط head_admin
   const handleDeleteAdmin = async (adminId: string, adminName: string) => {
+    if (adminId === 'adm_head_1' || adminName.toLowerCase() === 'admin') {
+      alert('امکان حذف دسترسی حساب اصلی مدیر ارشد وجود ندارد.');
+      return;
+    }
     if (!confirm(`آیا از حذف دسترسی ادمین «${adminName}» اطمینان دارید؟`)) return;
 
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${adminId}`, {
+      await fetch(`${API_BASE}/admin/users/${adminId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` },
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        loadAdminsList();
-      } else {
-        alert(data.error || 'خطا در حذف ادمین.');
+    } catch {}
+
+    const updated = adminsList.filter((a) => a.id !== adminId);
+    setAdminsList(updated);
+    localStorage.setItem('gemini_local_admins', JSON.stringify(updated));
+  };
+
+  // تغییر رمز عبور مدیر ارشد در تنظیمات
+  const handleChangeHeadPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeToast(null);
+
+    const storedHash = localStorage.getItem('gemini_head_admin_hash');
+    if (storedHash) {
+      const isOldValid = await verifyPassword(currentHeadPass, storedHash);
+      if (!isOldValid) {
+        setPasswordChangeToast({ type: 'error', msg: 'رمز عبور فعلی اشتباه است.' });
+        return;
       }
-    } catch {
-      const updated = adminsList.filter((a) => a.id !== adminId);
-      setAdminsList(updated);
-      localStorage.setItem('gemini_local_admins', JSON.stringify(updated));
     }
+
+    if (newHeadPass.length < 6) {
+      setPasswordChangeToast({ type: 'error', msg: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد.' });
+      return;
+    }
+
+    if (newHeadPass !== confirmNewHeadPass) {
+      setPasswordChangeToast({ type: 'error', msg: 'تکرار رمز عبور جدید با رمز وارد شده همخوانی ندارد.' });
+      return;
+    }
+
+    const newHash = await hashPassword(newHeadPass);
+    localStorage.setItem('gemini_head_admin_hash', newHash);
+
+    const localAdminsRaw = localStorage.getItem('gemini_local_admins');
+    if (localAdminsRaw) {
+      try {
+        const list = JSON.parse(localAdminsRaw);
+        const headIdx = list.findIndex((a: any) => a.username.toLowerCase() === 'admin');
+        if (headIdx !== -1) {
+          list[headIdx].passwordHash = newHash;
+          localStorage.setItem('gemini_local_admins', JSON.stringify(list));
+        }
+      } catch {}
+    }
+
+    try {
+      await fetch(`${API_BASE}/admin/change-password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ oldPassword: currentHeadPass, newPassword: newHeadPass }),
+      });
+    } catch {}
+
+    setCurrentHeadPass('');
+    setNewHeadPass('');
+    setConfirmNewHeadPass('');
+    setPasswordChangeToast({ type: 'success', msg: 'رمز عبور مدیر ارشد با موفقیت و رمزنگاری سالت‌دار بروزرسانی شد.' });
+    setTimeout(() => setPasswordChangeToast(null), 3500);
+  };
+
+  // پاکسازی کامل دیتابیس و داده‌های تستی (Zero-State)
+  const handleZeroStateReset = () => {
+    if (!confirm('آیا مطمئن هستید که می‌خواهید تمام سفارشات، پیام‌های چت و اطلاعات آزمایشی را پاکسازی کنید و سایت را به حالت کاملاً صفر (Zero-State) برگردانید؟')) {
+      return;
+    }
+
+    localStorage.removeItem('gemini_pro_orders_v1');
+    localStorage.removeItem('gemini_pro_chat_sessions_v1');
+    localStorage.removeItem('gemini_customer_profile_v1');
+    localStorage.removeItem('gemini_pro_user_session_id');
+
+    setOrders([]);
+    setChatMessages([]);
+    window.dispatchEvent(new CustomEvent('gemini_orders_updated', { detail: [] }));
+    window.dispatchEvent(new CustomEvent('gemini_chat_updated', { detail: [] }));
+    window.dispatchEvent(new CustomEvent('gemini_auth_changed', { detail: null }));
+
+    setZeroStateResetToast(true);
+    setTimeout(() => setZeroStateResetToast(false), 3500);
   };
 
   // فیلترها و آمار
@@ -493,7 +718,7 @@ export function AdminPanel({ open, onClose }: Props) {
   };
 
 
-  // فرم ورود به پنل (طراحی روشن و منطبق)
+  // فرم ورود به پنل یا راه‌اندازی اولیه رمز مدیر ارشد
   if (!isAuthenticated) {
     return (
       <div className="portal-overlay" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -502,51 +727,144 @@ export function AdminPanel({ open, onClose }: Props) {
             <div className="portal-sidebar__logo-wrap">
               <span className="brand-gemini-sparkle">✦</span>
             </div>
-            <h2>ورود به پنل مدیریت Gemini Shop</h2>
-            <p>جهت دسترسی به سیستم مدیریت سفارشات و چت، مشخصات مدیر را وارد نمایید</p>
+            {isSetupMode ? (
+              <>
+                <h2>راه‌اندازی رمز عبور مدیر ارشد (Head Admin)</h2>
+                <p>شما مدیر ارشد سایت هستید. لطفاً رمز عبور اختصاصی و امن خود را تعیین فرمایید:</p>
+              </>
+            ) : (
+              <>
+                <h2>ورود به پنل مدیریت Gemini Shop</h2>
+                <p>جهت دسترسی به سیستم مدیریت سفارشات و چت، مشخصات مدیر یا همکار را وارد نمایید</p>
+              </>
+            )}
           </div>
 
-          <form onSubmit={handleLogin} className="admin-login-form">
-            <div className="form-field">
-              <label>نام کاربری:</label>
-              <input
-                type="text"
-                placeholder="admin"
-                className="en"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
+          {isSetupMode ? (
+            <form onSubmit={handleSetupHeadAdmin} className="admin-login-form">
+              <div className="form-field">
+                <label>نام و نام خانوادگی مدیر ارشد:</label>
+                <input
+                  type="text"
+                  placeholder="نریمان موذنی (مدیر ارشد)"
+                  value={setupFullName}
+                  onChange={(e) => setSetupFullName(e.target.value)}
+                  required
+                />
+              </div>
 
-            <div className="form-field">
-              <label>رمز عبور مدیریت:</label>
-              <input
-                type="password"
-                placeholder="رمز عبور مدیریت"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+              <div className="form-field">
+                <label>نام کاربری مدیر ارشد:</label>
+                <input
+                  type="text"
+                  value="admin"
+                  disabled
+                  className="en input-disabled"
+                />
+              </div>
 
-            {loginError && <div className="admin-login-error-toast">{loginError}</div>}
+              <div className="form-field">
+                <label>رمز عبور اختصاصی (حداقل ۶ کاراکتر):</label>
+                <input
+                  type="password"
+                  placeholder="رمز عبور دلخواه شما"
+                  value={setupPassword}
+                  onChange={(e) => setSetupPassword(e.target.value)}
+                  required
+                />
+              </div>
 
-            <div className="admin-login-btn-row">
-              <button type="submit" className="btn-admin-login-submit" disabled={loginLoading}>
-                {loginLoading ? 'در حال ورود...' : 'ورود به پنل مدیریت'}
-              </button>
-              <button type="button" className="btn-admin-login-cancel" onClick={onClose}>
-                انصراف
-              </button>
-            </div>
-          </form>
+              <div className="form-field">
+                <label>تکرار رمز عبور اختصاصی:</label>
+                <input
+                  type="password"
+                  placeholder="تکرار رمز عبور"
+                  value={setupConfirm}
+                  onChange={(e) => setSetupConfirm(e.target.value)}
+                  required
+                />
+              </div>
+
+              {setupError && <div className="admin-login-error-toast">{setupError}</div>}
+
+              <div className="admin-login-btn-row">
+                <button type="submit" className="btn-admin-login-submit" disabled={setupLoading}>
+                  {setupLoading ? 'در حال ثبت امن...' : 'ذخیره رمز اختصاصی و ورود'}
+                </button>
+                {localStorage.getItem('gemini_head_admin_hash') && (
+                  <button type="button" className="btn-admin-login-cancel" onClick={() => setIsSetupMode(false)}>
+                    فرم ورود
+                  </button>
+                )}
+                <button type="button" className="btn-admin-login-cancel" onClick={onClose}>
+                  انصراف
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleLogin} className="admin-login-form">
+              <div className="form-field">
+                <label>نام کاربری:</label>
+                <input
+                  type="text"
+                  placeholder="admin یا نام کاربری همکار"
+                  className="en"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>رمز عبور ورود:</label>
+                <input
+                  type="password"
+                  placeholder="رمز عبور ورود"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {loginError && <div className="admin-login-error-toast">{loginError}</div>}
+
+              <div className="admin-login-btn-row">
+                <button type="submit" className="btn-admin-login-submit" disabled={loginLoading}>
+                  {loginLoading ? 'در حال ورود...' : 'ورود به پنل مدیریت'}
+                </button>
+                <button type="button" className="btn-admin-login-cancel" onClick={onClose}>
+                  انصراف
+                </button>
+              </div>
+
+              <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSetupMode(true);
+                    setSetupPassword('');
+                    setSetupConfirm('');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#6366f1',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  تعیین یا تغییر رمز عبور اختصاصی مدیر ارشد (Head Admin)
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     );
   }
 
-  const isHead = true;
+  const isHead = currentAdmin?.role === 'head_admin';
 
   return (
     <div className="portal-overlay" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -598,24 +916,28 @@ export function AdminPanel({ open, onClose }: Props) {
               )}
             </button>
 
-            <button
-              type="button"
-              className={`sidebar-nav-item ${activeTab === 'settings' ? 'is-active' : ''}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              <span className="sidebar-nav-icon"><Icon name="code" size={17} /></span>
-              <span>موجودی و پرداخت‌ها</span>
-            </button>
+            {isHead && (
+              <button
+                type="button"
+                className={`sidebar-nav-item ${activeTab === 'settings' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('settings')}
+              >
+                <span className="sidebar-nav-icon"><Icon name="code" size={17} /></span>
+                <span>موجودی و پرداخت‌ها</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`sidebar-nav-item ${activeTab === 'admins' ? 'is-active' : ''}`}
-              onClick={() => setActiveTab('admins')}
-            >
-              <span className="sidebar-nav-icon"><Icon name="user" size={17} /></span>
-              <span>همکاران و دسترسی‌ها</span>
-              {adminsList.length > 0 && <span className="nav-badge-neutral">{adminsList.length}</span>}
-            </button>
+            {isHead && (
+              <button
+                type="button"
+                className={`sidebar-nav-item ${activeTab === 'admins' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('admins')}
+              >
+                <span className="sidebar-nav-icon"><Icon name="user" size={17} /></span>
+                <span>همکاران و دسترسی‌ها</span>
+                {adminsList.length > 0 && <span className="nav-badge-neutral">{adminsList.length}</span>}
+              </button>
+            )}
 
             <button
               type="button"
@@ -1520,6 +1842,99 @@ export function AdminPanel({ open, onClose }: Props) {
                       </div>
                     )}
                   </form>
+                </div>
+
+                {/* کارت تغییر رمز عبور مدیر ارشد */}
+                <div className="settings-card-light" style={{ marginTop: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <h3 style={{ margin: 0 }}>تغییر رمز عبور مدیر ارشد (Head Admin)</h3>
+                    <span className="badge-tag-light">🔒 رمزنگاری امن سالت‌دار SHA-256</span>
+                  </div>
+                  <p className="settings-desc">جهت ارتقای امنیت پنل، رمز عبور مدیر ارشد را با سالت تصادفی رمزنگاری و بروزرسانی فرمایید.</p>
+
+                  <form onSubmit={handleChangeHeadPassword} className="profile-edit-form" style={{ marginTop: '16px' }}>
+                    <div className="settings-fields-grid">
+                      <div className="form-field">
+                        <label>رمز عبور فعلی مدیر ارشد:</label>
+                        <input
+                          type="password"
+                          placeholder="رمز عبور فعلی"
+                          value={currentHeadPass}
+                          onChange={(e) => setCurrentHeadPass(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label>رمز عبور جدید (حداقل ۶ کاراکتر):</label>
+                        <input
+                          type="password"
+                          placeholder="رمز عبور جدید"
+                          value={newHeadPass}
+                          onChange={(e) => setNewHeadPass(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label>تکرار رمز عبور جدید:</label>
+                        <input
+                          type="password"
+                          placeholder="تکرار رمز عبور جدید"
+                          value={confirmNewHeadPass}
+                          onChange={(e) => setConfirmNewHeadPass(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px' }}>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                        رمز جدید با الگوریتم یک‌طرفه و سالت تصادفی ذخیره شده و غیرقابل نفوذ خواهد بود.
+                      </span>
+                      <button type="submit" className="btn-save-profile">
+                        بروزرسانی رمز عبور
+                      </button>
+                    </div>
+
+                    {passwordChangeToast && (
+                      <div className={passwordChangeToast.type === 'success' ? 'save-toast-success' : 'admin-login-error-toast'} style={{ marginTop: '10px' }}>
+                        <span>{passwordChangeToast.msg}</span>
+                      </div>
+                    )}
+                  </form>
+                </div>
+
+                {/* کارت پاکسازی کامل دیتابیس و داده‌های تستی (Zero-State) */}
+                <div className="settings-card-light" style={{ marginTop: '18px', borderColor: '#fca5a5' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <h3 style={{ margin: 0, color: '#dc2626' }}>پاکسازی دیتابیس و داده‌های آزمایشی (Zero-State)</h3>
+                    <span className="badge-tag-light" style={{ color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2' }}>
+                      تحویل نهایی به کارفرما
+                    </span>
+                  </div>
+                  <p className="settings-desc">
+                    تمام سفارشات، تاریخچه گفتگوهای پشتیبانی، نشست‌ها و سوابق تستی پاکسازی شده و سایت در وضعیت کاملاً صفر و خام جهت راه‌اندازی و لانچ نهایی قرار می‌گیرد.
+                  </p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px' }}>
+                    <span style={{ fontSize: '12px', color: '#dc2626' }}>
+                      ⚠️ این عملیات برگشت‌ناپذیر است و دیتابیس را به وضعیت خام روز اول برمی‌گرداند.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleZeroStateReset}
+                      className="btn-admin-login-submit"
+                      style={{ background: '#dc2626', color: '#ffffff', border: 'none' }}
+                    >
+                      🧹 پاکسازی و بازنشانی دیتابیس صفر
+                    </button>
+                  </div>
+
+                  {zeroStateResetToast && (
+                    <div className="save-toast-success" style={{ marginTop: '10px' }}>
+                      <Icon name="check" size={15} />
+                      <span>دیتابیس، سفارشات و چت‌ها با موفقیت پاکسازی و به حالت صفر بازنشانی شدند.</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

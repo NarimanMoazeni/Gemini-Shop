@@ -1041,6 +1041,66 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // ۱۶. راه‌اندازی اولیه رمز عبور مدیر ارشد
+    if (pathname === '/api/admin/setup-head' && req.method === 'POST') {
+      const body = await parseRequestBody(req);
+      const password = String(body.password || '').trim();
+      const fullName = sanitizeText(body.fullName || 'نریمان موذنی (مدیر ارشد)', 100);
+
+      if (!password || password.length < 6) {
+        return sendJson(res, 400, { error: 'رمز عبور باید حداقل ۶ کاراکتر باشد.' });
+      }
+
+      const hash = hashPasswordSalted(password);
+      let head = db.admins.find((a) => a.username.toLowerCase() === 'admin');
+      if (head) {
+        head.passwordHash = hash;
+        head.fullName = fullName;
+      } else {
+        head = {
+          id: 'adm_head_1',
+          username: 'admin',
+          passwordHash: hash,
+          fullName,
+          role: 'head_admin',
+          createdAt: new Date().toISOString(),
+        };
+        db.admins.unshift(head);
+      }
+      db.settings.isHeadAdminConfigured = true;
+      saveDatabase(db);
+      return sendJson(res, 200, { success: true, message: 'رمز عبور مدیر ارشد با موفقیت ثبت شد.' });
+    }
+
+    // ۱۷. تغییر رمز عبور ادمین احراز هویت شده
+    if (pathname === '/api/admin/change-password' && req.method === 'PATCH') {
+      const currentAdmin = getAuthenticatedAdmin(req);
+      if (!currentAdmin) {
+        return sendJson(res, 401, { error: 'Unauthorized' });
+      }
+
+      const body = await parseRequestBody(req);
+      const oldPassword = body.oldPassword || '';
+      const newPassword = String(body.newPassword || '').trim();
+
+      if (!newPassword || newPassword.length < 6) {
+        return sendJson(res, 400, { error: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد.' });
+      }
+
+      const targetAdmin = db.admins.find((a) => a.id === currentAdmin.id);
+      if (!targetAdmin) {
+        return sendJson(res, 404, { error: 'ادمین یافت نشد.' });
+      }
+
+      if (!verifyPasswordSecure(oldPassword, targetAdmin.passwordHash)) {
+        return sendJson(res, 400, { error: 'رمز عبور فعلی اشتباه است.' });
+      }
+
+      targetAdmin.passwordHash = hashPasswordSalted(newPassword);
+      saveDatabase(db);
+      return sendJson(res, 200, { success: true, message: 'رمز عبور با موفقیت تغییر یافت.' });
+    }
+
     // روت پیدا نشد
     return sendJson(res, 404, { error: 'Endpoint not found' });
   } catch (err) {

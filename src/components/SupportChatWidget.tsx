@@ -8,10 +8,12 @@ import {
   sendUserMessage,
 } from '../services/chatService';
 import { Icon } from './Icon';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import './SupportChatWidget.css';
 
 export function SupportChatWidget() {
   const [open, setOpen] = useState(false);
+  useBodyScrollLock(open);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -82,9 +84,17 @@ export function SupportChatWidget() {
   };
 
   return (
-    <div className="support-widget" dir="rtl">
-      {/* پنجره گفتگوی باز شونده */}
+    <>
       {open && (
+        <div
+          className="support-widget__backdrop"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <div className="support-widget" dir="rtl">
+        {/* پنجره گفتگوی باز شونده */}
+        {open && (
         <div className="support-widget__window" role="dialog" aria-label="پشتیبانی آنلاین">
           {/* هدر رسمی و مینیمال چت */}
           <div className="support-widget__header">
@@ -287,5 +297,6 @@ export function SupportChatWidget() {
         )}
       </button>
     </div>
-  );
+  </>
+);
 }

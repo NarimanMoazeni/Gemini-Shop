@@ -23,6 +23,7 @@ ScrollTrigger.config({
 const TAU = Math.PI * 2;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const ease = gsap.parseEase('power2.inOut');
+const easeMobile = gsap.parseEase('power1.inOut');
 const easeSpin = gsap.parseEase('power1.inOut');
 
 /**
@@ -238,7 +239,7 @@ export function StarScene() {
 
     const render = () => {
       const p = state.p;
-      const m = ease(p);
+      const m = isMobile ? easeMobile(p) : ease(p);
       const x = lerp(start.x, end.x, m);
       const y = lerp(start.y, end.y, m);
       const size = lerp(start.size, end.size, m);
@@ -269,8 +270,8 @@ export function StarScene() {
       scrollTrigger: {
         trigger: document.body,
         start: 'top top',
-        end: () => `+=${Math.round(isMobile ? Math.min(window.innerHeight * 0.65, 420) : window.innerHeight * 0.95)}`,
-        scrub: isMobile ? true : (reduced ? true : 0.65), // در موبایل اتصال آنی ۱:۱ بدون ریباند یا لگ نیم ثانیه‌ای به عقب
+        end: () => `+=${Math.round(isMobile ? Math.min(window.innerHeight * 0.72, 460) : window.innerHeight * 0.95)}`,
+        scrub: isMobile ? 0.16 : (reduced ? true : 0.65), // نرمی فوق‌العاده مخملی و ۶۰ فریم در موبایل بدون شوک معکوس
         invalidateOnRefresh: true,
         fastScrollEnd: true,
         onRefresh: () => {

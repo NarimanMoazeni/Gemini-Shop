@@ -3,21 +3,12 @@
   "chatMessages": [],
   "users": [],
   "settings": {
-    "adminPassword": "admin123",
     "priceToman": 499000,
     "smtpHost": "smtp.gmail.com",
     "smtpPort": 465,
     "smtpUser": "",
-    "smtpPass": ""
+    "smtpPass": "",
+    "isHeadAdminConfigured": false
   },
-  "admins": [
-    {
-      "id": "adm_head_1",
-      "username": "admin",
-      "passwordHash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa82280f1a7cae866",
-      "fullName": "نریمان موذنی (مدیر ارشد)",
-      "role": "head_admin",
-      "createdAt": "2026-10-16T10:00:00.000Z"
-    }
-  ]
+  "admins": []
 }
