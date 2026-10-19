@@ -9,6 +9,7 @@ import { getStoredOrders, type StoreOrder } from './orderStorage';
 export interface UserProfile {
   id: string;
   fullName: string;
+  username?: string;
   mobile: string;
   gmail: string;
   createdAt: string;
@@ -71,13 +72,110 @@ export async function checkEmailExists(email: string): Promise<boolean> {
 }
 
 /**
+ * بررسی آزاد بودن نام کاربری (Check Username)
+ */
+export async function checkUsernameExists(username: string): Promise<{ exists: boolean; available: boolean }> {
+  const cleanUser = sanitizeInput(username).trim().toLowerCase();
+  if (!cleanUser) return { exists: false, available: true };
+  try {
+    const res = await fetch(`${API_BASE}/auth/check-username?username=${encodeURIComponent(cleanUser)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return { exists: Boolean(data.exists), available: Boolean(data.available) };
+    }
+  } catch (err) {
+    console.warn('Backend unavailable for username check:', err);
+  }
+  const existing = getCurrentUser();
+  if (existing && existing.username && existing.username.toLowerCase() === cleanUser) {
+    return { exists: true, available: false };
+  }
+  return { exists: false, available: true };
+}
+
+/**
+ * ورود مستقیم خریدار با استفاده از نام کاربری / ایمیل و رمز عبور (بدون نیاز به کد یکبارمصرف OTP)
+ */
+export async function loginWithPassword(
+  usernameOrEmail: string,
+  password: string
+): Promise<{
+  success: boolean;
+  user?: UserProfile;
+  message?: string;
+  error?: string;
+  notFound?: boolean;
+  needsOtpSetup?: boolean;
+}> {
+  const cleanIdentifier = sanitizeInput(usernameOrEmail).trim();
+  const cleanPass = password ? String(password).trim() : '';
+
+  if (!cleanIdentifier || !cleanPass) {
+    return {
+      success: false,
+      error: 'لطفاً نام کاربری (یا ایمیل) و رمز عبور خود را وارد نمایید.',
+    };
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/login-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        usernameOrEmail: cleanIdentifier,
+        password: cleanPass,
+      }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success && data.user) {
+      const user: UserProfile = data.user;
+      saveCurrentUser(user);
+      return {
+        success: true,
+        user,
+        message: data.message || 'ورود به حساب کاربری با موفقیت انجام شد.',
+      };
+    }
+
+    return {
+      success: false,
+      error: data.error || 'خطا در ورود به حساب کاربری.',
+      notFound: data.notFound,
+      needsOtpSetup: data.needsOtpSetup,
+    };
+  } catch (err) {
+    console.warn('Backend unavailable for password login, checking offline storage:', err);
+    const existing = getCurrentUser();
+    if (
+      existing &&
+      (existing.gmail.toLowerCase() === cleanIdentifier.toLowerCase() ||
+        (existing.username && existing.username.toLowerCase() === cleanIdentifier.toLowerCase()))
+    ) {
+      saveCurrentUser(existing);
+      return {
+        success: true,
+        user: existing,
+        message: 'ورود آفلاین موفقیت‌آمیز بود.',
+      };
+    }
+    return {
+      success: false,
+      error: 'اتصال به سرور برقرار نشد یا مشخصات وارد شده نادرست است.',
+    };
+  }
+}
+
+/**
  * درخواست ارسال کد تأیید یکبار مصرف ایمیلی (Email / Gmail OTP)
  */
 export async function requestEmailOtp(
   email: string,
   fullName?: string,
   mobile?: string,
-  mode: 'register' | 'login' | 'general' = 'general'
+  mode: 'register' | 'login' | 'general' = 'general',
+  username?: string,
+  password?: string
 ): Promise<{
   success: boolean;
   message: string;
@@ -86,6 +184,7 @@ export async function requestEmailOtp(
   error?: string;
   alreadyExists?: boolean;
   notFound?: boolean;
+  usernameTaken?: boolean;
 }> {
   const cleanEmail = sanitizeEmail(email);
   if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -99,6 +198,8 @@ export async function requestEmailOtp(
       body: JSON.stringify({
         email: cleanEmail,
         fullName: sanitizeInput(fullName || ''),
+        username: sanitizeInput(username || '').toLowerCase(),
+        password: password || undefined,
         mobile: sanitizeMobile(mobile || ''),
         mode,
       }),
@@ -120,6 +221,7 @@ export async function requestEmailOtp(
       cooldownSeconds: data.remainingSeconds,
       alreadyExists: data.alreadyExists,
       notFound: data.notFound,
+      usernameTaken: data.usernameTaken,
     };
   } catch (err) {
     console.warn('Backend unavailable for OTP, using offline simulation fallback:', err);
@@ -162,7 +264,9 @@ export async function verifyEmailOtp(
   code: string,
   fullName?: string,
   mobile?: string,
-  mode: 'register' | 'login' | 'general' = 'general'
+  mode: 'register' | 'login' | 'general' = 'general',
+  username?: string,
+  password?: string
 ): Promise<{
   success: boolean;
   user?: UserProfile;
@@ -181,6 +285,8 @@ export async function verifyEmailOtp(
         email: cleanEmail,
         code: cleanCode,
         fullName: sanitizeInput(fullName || ''),
+        username: sanitizeInput(username || '').toLowerCase(),
+        password: password || undefined,
         mobile: sanitizeMobile(mobile || ''),
         mode,
       }),

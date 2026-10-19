@@ -84,36 +84,72 @@
 
 .nav__cta-mobile,
 .nav__track-mobile,
-.nav__profile-mobile {
+.nav__profile-mobile,
+.nav__auth-mobile-row {
   display: none;
 }
 
 .header__actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
+}
+
+.header__auth-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(241, 245, 249, 0.7);
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  backdrop-filter: blur(8px);
 }
 
 .header__login-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(130, 140, 200, 0.22);
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 8px 14px;
+  padding: 6px 14px;
   font-size: 13.5px;
   font-weight: 500;
   color: var(--ink);
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .header__login-btn:hover {
   background: #ffffff;
-  border-color: rgba(47, 123, 255, 0.4);
+  border-color: rgba(203, 213, 225, 0.9);
   color: var(--blue-deep);
-  box-shadow: 0 4px 14px rgba(47, 123, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.header__register-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--blue-deep);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+  transition: all 0.2s ease;
+}
+
+.header__register-btn:hover {
+  background: var(--blue-deep);
+  color: #ffffff;
+  border-color: var(--blue-deep);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
   transform: translateY(-1px);
 }
 
@@ -235,6 +271,40 @@
 
   .nav__link.is-active::after {
     display: none;
+  }
+
+  .nav__auth-mobile-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .nav__login-mobile,
+  .nav__register-mobile {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap !important;
+  }
+
+  .nav__login-mobile {
+    background: rgba(241, 245, 249, 0.85);
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    color: var(--ink);
+  }
+
+  .nav__register-mobile {
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: var(--blue-deep);
   }
 
   .nav__cta-mobile,

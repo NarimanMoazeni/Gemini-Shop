@@ -27,6 +27,8 @@ export default function App() {
   // وضعیت احراز هویت و پروفایل مشتری
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentUser());
   const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
+  const [pendingCheckoutAfterAuth, setPendingCheckoutAfterAuth] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   // گوش دادن به تغییرات وضعیت لاگین/پروفایل
@@ -91,8 +93,19 @@ export default function App() {
     };
   }, []);
 
-  const openCheckout = useCallback(() => setCheckout(true), []);
   const closeCheckout = useCallback(() => setCheckout(false), []);
+
+  // کلیک روی دکمه خرید: در صورت نبود اکانت، ابتدا ثبت‌نام باز می‌شود
+  const handleBuy = useCallback(() => {
+    const user = getCurrentUser();
+    if (!user) {
+      setAuthMode('register');
+      setPendingCheckoutAfterAuth(true);
+      setAuthOpen(true);
+    } else {
+      setCheckout(true);
+    }
+  }, []);
 
   const openTracking = useCallback((orderId?: string) => {
     setTrackOrderId(orderId);
@@ -119,12 +132,20 @@ export default function App() {
     }
   }, []);
 
-  const openAuth = useCallback(() => setAuthOpen(true), []);
-  const closeAuth = useCallback(() => setAuthOpen(false), []);
+  const openAuth = useCallback((mode: 'login' | 'register' = 'register') => {
+    setAuthMode(mode);
+    setPendingCheckoutAfterAuth(false);
+    setAuthOpen(true);
+  }, []);
+  const closeAuth = useCallback(() => {
+    setAuthOpen(false);
+    setPendingCheckoutAfterAuth(false);
+  }, []);
 
   const openProfile = useCallback(() => {
     const latestUser = getCurrentUser();
     if (!latestUser) {
+      setAuthMode('login');
       setAuthOpen(true);
     } else {
       setCurrentUser(latestUser);
@@ -137,7 +158,7 @@ export default function App() {
   return (
     <>
       <Header
-        onBuy={openCheckout}
+        onBuy={handleBuy}
         onTrackOrder={() => openTracking()}
         onOpenAuth={openAuth}
         onOpenProfile={openProfile}
@@ -145,15 +166,15 @@ export default function App() {
       />
       <StarScene />
       <main>
-        <Hero product={product} onBuy={openCheckout} />
+        <Hero product={product} onBuy={handleBuy} />
         <Benefits />
         <UseCases />
-        <Pricing product={product} onBuy={openCheckout} />
+        <Pricing product={product} onBuy={handleBuy} />
         <Activation />
         <Trust />
         <WaveDivider color="tint" />
         <Faq />
-        <CtaBand product={product} onBuy={openCheckout} />
+        <CtaBand product={product} onBuy={handleBuy} />
       </main>
       <WaveDivider color="pearl" />
       <Footer />
@@ -181,10 +202,16 @@ export default function App() {
       {/* مدال احراز هویت خریداران */}
       <AuthModal
         open={authOpen}
+        initialMode={authMode}
         onClose={closeAuth}
         onSuccess={(u) => {
           setCurrentUser(u);
-          setProfileOpen(true);
+          if (pendingCheckoutAfterAuth) {
+            setPendingCheckoutAfterAuth(false);
+            setCheckout(true);
+          } else {
+            setProfileOpen(true);
+          }
         }}
       />
       {/* داشبورد و پروفایل مشتری (مشاهده لینک فعال‌سازی رسمی گوگل) */}
@@ -193,7 +220,7 @@ export default function App() {
           open={profileOpen}
           user={currentUser}
           onClose={closeProfile}
-          onBuy={openCheckout}
+          onBuy={handleBuy}
         />
       )}
       {/* ویجت شناور پشتیبانی و چت آنلاین */}

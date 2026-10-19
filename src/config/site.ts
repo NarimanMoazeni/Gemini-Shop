@@ -49,7 +49,7 @@ export const PRODUCT: Product = {
 /** تنظیمات درگاه کارت به کارت و پرداخت بزن به کارت */
 export const PAYMENT_CONFIG = {
   serviceName: 'بزن به کارت',
-  paymentUrl: 'https://bezanbecard.ir/pay/link/pPil9MUHeu', // لینک مستقیم پرداخت بزن به کارت
+  paymentUrl: 'https://bezanbecard.ir/pay/link/I7NhdFDS2u', // لینک مستقیم پرداخت بزن به کارت (مبلغ ۵۹۹,۰۰۰ تومان)
   cardNumber: '6219-8619-4490-3367',
   cardHolder: 'نریمان موذنی',
   bankName: 'بانک سامان',

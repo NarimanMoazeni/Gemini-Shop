@@ -1,51 +1,73 @@
 import { useState, useRef, useEffect } from 'react';
 import { Icon } from './Icon';
-import { sanitizeEmail, sanitizeMobile, isValidIranianMobile } from '../lib/sanitize';
-import { requestEmailOtp, verifyEmailOtp, type UserProfile } from '../services/authService';
+import { sanitizeEmail, sanitizeInput } from '../lib/sanitize';
+import {
+  requestEmailOtp,
+  verifyEmailOtp,
+  loginWithPassword,
+  checkUsernameExists,
+  type UserProfile
+} from '../services/authService';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import './AuthModal.css';
 
 interface Props {
   open: boolean;
+  initialMode?: 'login' | 'register';
   onClose: () => void;
   onSuccess: (user: UserProfile) => void;
 }
 
-export function AuthModal({ open, onClose, onSuccess }: Props) {
+export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }: Props) {
   useBodyScrollLock(open);
-  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
-  const [step, setStep] = useState<1 | 2>(1);
+  const [authMode, setAuthMode] = useState<'register' | 'login'>(initialMode);
+  const [step, setStep] = useState<1 | 2>(1); // Step 1: Form, Step 2: OTP (only for register)
+
+  // فیلدهای ثبت‌نام (۴ فیلد: نام و نام خانوادگی، نام کاربری، ایمیل، رمز عبور)
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [gmail, setGmail] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+
+  // فیلدهای ورود (نام کاربری یا ایمیل + رمز عبور)
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  // فیلد کد تایید یکبارمصرف ایمیلی (فقط برای ثبت‌نام)
   const [otpCode, setOtpCode] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [usernameTaken, setUsernameTaken] = useState(false);
   const [simulationCode, setSimulationCode] = useState<string | null>(null);
 
-  // تایمر ۶۰ ثانیه‌ای ارسال مجدد کد
+  // تایمر ۶۰ ثانیه‌ای ارسال مجدد کد ثبت‌نام
   const [timer, setTimer] = useState(60);
   const timerRef = useRef<number | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
 
+  // ریست و مقداردهی اولیه به محض باز شدن مدال
   useEffect(() => {
     if (open) {
+      setAuthMode(initialMode);
       setError(null);
       setAlreadyExists(false);
       setNotFound(false);
+      setUsernameTaken(false);
       setSimulationCode(null);
       setStep(1);
       setOtpCode('');
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), 120);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [open]);
+  }, [open, initialMode]);
 
   // مدیریت شمارش معکوس تایمر
   useEffect(() => {
@@ -63,32 +85,87 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
 
   if (!open) return null;
 
-  // مرحله ۱: ارسال کد تایید به جیمیل خریدار با بررسی یکتا بودن اکانت
-  const handleRequestOtp = async (e: React.FormEvent) => {
+  // ورود سریع با نام کاربری یا ایمیل و پسورد (بدون نیاز به OTP)
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setAlreadyExists(false);
     setNotFound(false);
 
-    if (authMode === 'register' && fullName.trim().length < 3) {
-      setError('لطفاً نام و نام خانوادگی خود را کامل وارد فرمایید.');
+    const cleanIdentifier = loginIdentifier.trim();
+    if (!cleanIdentifier) {
+      setError('لطفاً نام کاربری یا ایمیل خود را وارد نمایید.');
       return;
     }
 
+    if (!loginPassword) {
+      setError('لطفاً رمز عبور خود را وارد نمایید.');
+      return;
+    }
+
+    setLoading(true);
+    const result = await loginWithPassword(cleanIdentifier, loginPassword);
+    setLoading(false);
+
+    if (result.success && result.user) {
+      onSuccess(result.user);
+      onClose();
+    } else {
+      setError(result.error || 'اطلاعات ورود نادرست است.');
+      if (result.notFound) {
+        setNotFound(true);
+      }
+    }
+  };
+
+  // ارسال کد تأیید ایمیلی برای ثبت‌نام (مرحله ۱ ثبت‌نام)
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setAlreadyExists(false);
+    setUsernameTaken(false);
+
+    // ۱. اعتبارسنجی نام و نام خانوادگی
+    if (fullName.trim().length < 3) {
+      setError('لطفاً نام و نام خانوادگی خود را کامل وارد فرمایید (حداقل ۳ حرف).');
+      return;
+    }
+
+    // ۲. اعتبارسنجی نام کاربری
+    const cleanUsername = username.trim().toLowerCase();
+    if (cleanUsername.length < 3) {
+      setError('نام کاربری باید حداقل ۳ کاراکتر و به حروف انگلیسی یا عدد باشد.');
+      return;
+    }
+    if (!/^[a-z0-9_.-]+$/.test(cleanUsername)) {
+      setError('نام کاربری فقط می‌تواند شامل حروف کوچک انگلیسی، اعداد، نقطه و خط تیره باشد.');
+      return;
+    }
+
+    // ۳. اعتبارسنجی ایمیل
     const cleanGmail = sanitizeEmail(gmail);
     if (!cleanGmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanGmail)) {
       setError('لطفاً یک آدرس ایمیل معتبر (مانند yourname@gmail.com) وارد فرمایید.');
       return;
     }
 
-    if (authMode === 'register' && mobile.trim() && !isValidIranianMobile(mobile)) {
-      setError('شماره موبایل وارد شده باید ۱۱ رقم و با ۰۹ شروع شود.');
+    // ۴. اعتبارسنجی رمز عبور
+    if (registerPassword.length < 6) {
+      setError('رمز عبور انتخابی باید حداقل ۶ کاراکتر باشد.');
       return;
     }
 
+    // بررسی آنلاین در دسترس بودن نام کاربری
     setLoading(true);
-    const cleanMobile = sanitizeMobile(mobile);
-    const result = await requestEmailOtp(cleanGmail, fullName, cleanMobile, authMode);
+    const userCheck = await checkUsernameExists(cleanUsername);
+    if (!userCheck.available) {
+      setLoading(false);
+      setError('این نام کاربری قبلاً توسط کاربر دیگری انتخاب شده است. لطفاً نام دیگری برگزینید.');
+      setUsernameTaken(true);
+      return;
+    }
+
+    // درخواست کد تأیید ایمیلی
+    const result = await requestEmailOtp(cleanGmail, fullName.trim(), '', 'register', cleanUsername, registerPassword);
     setLoading(false);
 
     if (result.success) {
@@ -101,26 +178,33 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
     } else {
       setError(result.error || 'خطا در ارسال کد تایید ایمیلی.');
       if (result.alreadyExists) setAlreadyExists(true);
-      if (result.notFound) setNotFound(true);
+      if (result.usernameTaken) setUsernameTaken(true);
     }
   };
 
-  // مرحله ۲: بررسی کد و ورود قطعی
+  // تأیید نهایی کد OTP و تکمیل ثبت‌نام (مرحله ۲ ثبت‌نام)
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setAlreadyExists(false);
 
     const cleanCode = otpCode.trim().replace(/\D/g, '');
     if (cleanCode.length < 4) {
-      setError('لطفاً کد تایید ۵ رقمی ارسال‌شده را به طور کامل وارد فرمایید.');
+      setError('لطفاً کد تایید ۵ رقمی ارسال‌شده به ایمیل را به طور کامل وارد فرمایید.');
       return;
     }
 
     setLoading(true);
     const cleanGmail = sanitizeEmail(gmail);
-    const cleanMobile = sanitizeMobile(mobile);
-    const result = await verifyEmailOtp(cleanGmail, cleanCode, fullName, cleanMobile, authMode);
+    const cleanUsername = username.trim().toLowerCase();
+    const result = await verifyEmailOtp(
+      cleanGmail,
+      cleanCode,
+      fullName.trim(),
+      '',
+      'register',
+      cleanUsername,
+      registerPassword
+    );
     setLoading(false);
 
     if (result.success && result.user) {
@@ -132,15 +216,15 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
     }
   };
 
-  // ارسال مجدد کد ایمیلی
+  // ارسال مجدد کد ثبت‌نام
   const handleResendOtp = async () => {
     if (timer > 0 || loading) return;
     setError(null);
     setLoading(true);
 
     const cleanGmail = sanitizeEmail(gmail);
-    const cleanMobile = sanitizeMobile(mobile);
-    const result = await requestEmailOtp(cleanGmail, fullName, cleanMobile, authMode);
+    const cleanUsername = username.trim().toLowerCase();
+    const result = await requestEmailOtp(cleanGmail, fullName.trim(), '', 'register', cleanUsername, registerPassword);
     setLoading(false);
 
     if (result.success) {
@@ -158,12 +242,12 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
       <div className="auth-card" role="dialog" aria-modal="true">
         <div className="auth-card__header">
           <div className="auth-card__icon-wrap">
-            <Icon name={step === 1 ? (authMode === 'register' ? 'user' : 'shield') : 'shield'} size={24} />
+            <Icon name={step === 1 ? (authMode === 'register' ? 'sparkle' : 'user') : 'shield'} size={24} />
           </div>
 
           {step === 1 ? (
             <>
-              {/* تب‌های انتخاب میان ایجاد حساب جدید یا ورود */}
+              {/* تب‌های جابه‌جایی میان ورود و ثبت‌نام */}
               <div className="auth-card__tabs">
                 <button
                   type="button"
@@ -173,9 +257,11 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                     setError(null);
                     setAlreadyExists(false);
                     setNotFound(false);
+                    setUsernameTaken(false);
                   }}
                 >
-                  ایجاد حساب جدید
+                  <Icon name="sparkle" size={15} />
+                  <span>ثبت‌نام جدید</span>
                 </button>
                 <button
                   type="button"
@@ -185,22 +271,26 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                     setError(null);
                     setAlreadyExists(false);
                     setNotFound(false);
+                    setUsernameTaken(false);
                   }}
                 >
-                  ورود به حساب
+                  <Icon name="user" size={15} />
+                  <span>ورود به حساب</span>
                 </button>
               </div>
 
-              <p>
+              <p className="auth-card__subtitle">
                 {authMode === 'register'
-                  ? 'هر کاربر تنها مجاز به ساخت یک حساب با هر آدرس جیمیل می‌باشد.'
-                  : 'اگر قبلاً حسابی ساخته‌اید، آدرس جیمیل خود را جهت دریافت کد ورود وارد کنید.'}
+                  ? 'جهت ثبت سفارش و دریافت لایسنس، اطلاعات حساب خود را وارد فرمایید.'
+                  : 'برای دسترسی به سوابق و لایسنس‌ها، نام کاربری و رمز عبور خود را وارد نمایید.'}
               </p>
             </>
           ) : (
             <>
-              <h2>تأیید آدرس ایمیل</h2>
-              <p>کد تایید ۵ رقمی ارسال‌شده به <span className="en font-bold text-blue-600">{gmail}</span> را وارد فرمایید:</p>
+              <h2>تأیید ایمیل و ساخت حساب</h2>
+              <p className="auth-card__subtitle">
+                کد ۵ رقمی ارسال‌شده به <span className="en font-bold text-blue-600">{gmail}</span> را وارد فرمایید:
+              </p>
             </>
           )}
 
@@ -218,6 +308,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                 className="btn btn--outline auth-card__quick-switch-btn"
                 onClick={() => {
                   setAuthMode('login');
+                  setLoginIdentifier(gmail);
                   setError(null);
                   setAlreadyExists(false);
                   setStep(1);
@@ -238,7 +329,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                   setStep(1);
                 }}
               >
-                <span>ثبت‌نام و ایجاد حساب جدید</span>
+                <span>ایجاد حساب جدید (ثبت‌نام)</span>
                 <Icon name="arrow" size={14} />
               </button>
             )}
@@ -260,76 +351,189 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
         )}
 
         {step === 1 ? (
-          <form onSubmit={handleRequestOtp} className="auth-card__form">
-            {authMode === 'register' && (
+          authMode === 'register' ? (
+            /* فرم ثبت‌نام با ۴ فیلد: نام و نام خانوادگی، نام کاربری، ایمیل، رمز عبور */
+            <form onSubmit={handleRegisterSubmit} className="auth-card__form">
               <div className="auth-card__field">
                 <label>نام و نام خانوادگی:</label>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="مثال: علی محمدی"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
+                <div className="auth-input-wrapper">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="مثال: علی محمدی"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            )}
 
-            <div className="auth-card__field">
-              <label>
-                {authMode === 'register'
-                  ? 'آدرس ایمیل / جیمیل شخصی (جهت دریافت کد تأیید):'
-                  : 'آدرس ایمیل / جیمیل ثبت‌شده:'}
-              </label>
-              <input
-                ref={authMode === 'login' ? inputRef : undefined}
-                type="email"
-                placeholder="name@gmail.com"
-                dir="ltr"
-                value={gmail}
-                onChange={(e) => setGmail(e.target.value)}
-                required
-              />
-              <small className="auth-card__hint">
-                کد تأیید ورود و فعال‌سازی برای شما به این آدرس جیمیل ارسال خواهد شد
-              </small>
-            </div>
-
-            {authMode === 'register' && (
               <div className="auth-card__field">
-                <label>شماره تماس همراه (جهت هماهنگی و پشتیبانی):</label>
-                <input
-                  type="tel"
-                  placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                  dir="ltr"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  required
-                />
+                <label>نام کاربری (Username به انگلیسی):</label>
+                <div className={`auth-input-wrapper ${usernameTaken ? 'auth-input-wrapper--error' : ''}`}>
+                  <input
+                    type="text"
+                    placeholder="مثال: ali_mohammadi"
+                    dir="ltr"
+                    className="en"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(sanitizeInput(e.target.value).toLowerCase());
+                      if (usernameTaken) setUsernameTaken(false);
+                    }}
+                    required
+                  />
+                </div>
+                {usernameTaken ? (
+                  <small className="auth-card__hint" style={{ color: '#dc2626', fontWeight: 600 }}>
+                    این نام کاربری قبلاً رزرو شده است. لطفاً نام دیگری انتخاب فرمایید.
+                  </small>
+                ) : (
+                  <small className="auth-card__hint">
+                    شامل حروف انگلیسی و اعداد (جهت ورود آسان به سایت در دفعات بعدی)
+                  </small>
+                )}
               </div>
-            )}
 
-            <div className="auth-card__actions">
-              <button
-                type="submit"
-                className="btn btn--accent auth-card__submit-btn"
-                disabled={loading}
-              >
-                <span>
-                  {loading
-                    ? 'در حال ارسال ایمیل...'
-                    : authMode === 'register'
-                    ? 'دریافت کد تایید و ساخت حساب'
-                    : 'ارسال کد تایید ورود'}
-                </span>
-                <Icon name="arrow" size={16} />
-              </button>
-            </div>
-          </form>
+              <div className="auth-card__field">
+                <label>آدرس ایمیل / جیمیل (جهت دریافت کد تأیید):</label>
+                <div className="auth-input-wrapper">
+                  <input
+                    type="email"
+                    placeholder="name@gmail.com"
+                    dir="ltr"
+                    className="en"
+                    value={gmail}
+                    onChange={(e) => setGmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <small className="auth-card__hint">
+                  کد تأیید یکبارمصرف به این آدرس ارسال خواهد شد
+                </small>
+              </div>
+
+              <div className="auth-card__field">
+                <label>رمز عبور (Password):</label>
+                <div className="auth-input-wrapper auth-input-wrapper--password">
+                  <input
+                    type={showRegisterPassword ? 'text' : 'password'}
+                    placeholder="حداقل ۶ کاراکتر"
+                    dir="ltr"
+                    className="en"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-password-toggle"
+                    onClick={() => setShowRegisterPassword((v) => !v)}
+                    title={showRegisterPassword ? 'مخفی کردن رمز' : 'نمایش رمز'}
+                  >
+                    <Icon name={showRegisterPassword ? 'eyeOff' : 'eye'} size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="auth-card__actions">
+                <button
+                  type="submit"
+                  className="btn btn--accent auth-card__submit-btn"
+                  disabled={loading}
+                >
+                  <span>{loading ? 'در حال ارسال کد تأیید...' : 'ثبت‌نام و دریافت کد تأیید ایمیل'}</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+
+              <div className="auth-card__footer-switch">
+                <span>قبلاً ثبت‌نام کرده‌اید؟</span>
+                <button
+                  type="button"
+                  className="auth-card__switch-link"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setError(null);
+                  }}
+                >
+                  ورود به حساب
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* فرم ورود با نام کاربری یا ایمیل و رمز عبور (بدون نیاز به OTP) */
+            <form onSubmit={handleLoginSubmit} className="auth-card__form">
+              <div className="auth-card__field">
+                <label>نام کاربری یا آدرس ایمیل:</label>
+                <div className="auth-input-wrapper">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="نام کاربری یا Gmail شما"
+                    dir="ltr"
+                    className="en"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="auth-card__field">
+                <label>رمز عبور:</label>
+                <div className="auth-input-wrapper auth-input-wrapper--password">
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    placeholder="رمز عبور حساب خود را وارد فرمایید"
+                    dir="ltr"
+                    className="en"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-password-toggle"
+                    onClick={() => setShowLoginPassword((v) => !v)}
+                    title={showLoginPassword ? 'مخفی کردن رمز' : 'نمایش رمز'}
+                  >
+                    <Icon name={showLoginPassword ? 'eyeOff' : 'eye'} size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="auth-card__actions">
+                <button
+                  type="submit"
+                  className="btn btn--accent auth-card__submit-btn"
+                  disabled={loading}
+                >
+                  <span>{loading ? 'در حال بررسی...' : 'ورود به حساب کاربری'}</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+
+              <div className="auth-card__footer-switch">
+                <span>حساب کاربری ندارید؟</span>
+                <button
+                  type="button"
+                  className="auth-card__switch-link font-semibold text-blue-600"
+                  onClick={() => {
+                    setAuthMode('register');
+                    setError(null);
+                  }}
+                >
+                  ثبت‌نام جدید و دریافت اشتراک
+                </button>
+              </div>
+            </form>
+          )
         ) : (
+          /* مرحله ۲: تایید کد OTP ایمیل خریدار */
           <form onSubmit={handleVerifyOtp} className="auth-card__form">
             <div className="auth-card__field">
-              <label>کد تایید ۵ رقمی:</label>
+              <label>کد تأیید ۵ رقمی ایمیل:</label>
               <input
                 ref={otpInputRef}
                 type="text"
@@ -357,7 +561,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                   onClick={handleResendOtp}
                   disabled={loading}
                 >
-                  ارسال مجدد ایمیل کد
+                  ارسال مجدد کد ایمیلی
                 </button>
               )}
               <button
@@ -378,13 +582,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                 className="btn btn--accent auth-card__submit-btn"
                 disabled={loading}
               >
-                <span>
-                  {loading
-                    ? 'در حال بررسی کد...'
-                    : authMode === 'register'
-                    ? 'تایید کد و ساخت حساب'
-                    : 'تایید و ورود به حساب'}
-                </span>
+                <span>{loading ? 'در حال ایجاد حساب...' : 'تأیید کد و تکمیل ثبت‌نام'}</span>
                 <Icon name="check" size={16} />
               </button>
             </div>

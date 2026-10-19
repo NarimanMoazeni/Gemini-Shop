@@ -7,7 +7,7 @@ import './Header.css';
 interface Props {
   onBuy: () => void;
   onTrackOrder?: () => void;
-  onOpenAuth?: () => void;
+  onOpenAuth?: (mode?: 'login' | 'register') => void;
   onOpenProfile?: () => void;
   currentUser?: UserProfile | null;
 }
@@ -93,15 +93,26 @@ export function Header({ onBuy, onTrackOrder, onOpenAuth, onOpenProfile, current
               <Icon name="user" size={16} /> پروفایل کاربری ({currentUser.fullName.split(' ')[0]})
             </button>
           ) : (
-            <button
-              className="btn btn--ghost btn--sm nav__profile-mobile"
-              onClick={() => {
-                setOpen(false);
-                onOpenAuth?.();
-              }}
-            >
-              <Icon name="user" size={16} /> ورود / حساب کاربری
-            </button>
+            <div className="nav__auth-mobile-row">
+              <button
+                className="btn btn--ghost btn--sm nav__login-mobile"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenAuth?.('login');
+                }}
+              >
+                <Icon name="user" size={16} /> ورود
+              </button>
+              <button
+                className="btn btn--outline btn--sm nav__register-mobile"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenAuth?.('register');
+                }}
+              >
+                <Icon name="sparkle" size={15} /> ثبت‌نام
+              </button>
+            </div>
           )}
 
           {onTrackOrder && (
@@ -134,10 +145,24 @@ export function Header({ onBuy, onTrackOrder, onOpenAuth, onOpenProfile, current
               <span className="user-online-dot" />
             </button>
           ) : (
-            <button className="btn btn--ghost btn--sm header__login-btn" onClick={onOpenAuth}>
-              <Icon name="user" size={15} />
-              <span>حساب کاربری</span>
-            </button>
+            <div className="header__auth-group">
+              <button
+                className="btn btn--ghost btn--sm header__login-btn"
+                onClick={() => onOpenAuth?.('login')}
+                title="ورود به حساب کاربری"
+              >
+                <Icon name="user" size={15} />
+                <span>ورود</span>
+              </button>
+              <button
+                className="btn btn--outline btn--sm header__register-btn"
+                onClick={() => onOpenAuth?.('register')}
+                title="ثبت‌نام و ایجاد حساب جدید"
+              >
+                <Icon name="sparkle" size={14} />
+                <span>ثبت‌نام</span>
+              </button>
+            </div>
           )}
 
           <button className="btn btn--sm header__cta" onClick={onBuy}>

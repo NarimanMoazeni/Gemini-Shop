@@ -119,9 +119,58 @@
   color: #334155;
 }
 
+.auth-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-input-wrapper input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.15s ease;
+  background: #ffffff;
+}
+
+.auth-input-wrapper input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.auth-input-wrapper--password input {
+  padding-inline-end: 42px;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.auth-password-toggle:hover {
+  color: #2563eb;
+}
+
 .auth-card__field input {
   padding: 10px 14px;
-  border-radius: 9px;
+  border-radius: 10px;
   border: 1px solid #cbd5e1;
   font-size: 13.5px;
   font-family: inherit;
@@ -130,8 +179,8 @@
 }
 
 .auth-card__field input:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .auth-card__field small {
@@ -141,7 +190,7 @@
 }
 
 .auth-card__actions {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .auth-card__submit-btn {
@@ -151,9 +200,37 @@
   justify-content: center;
   gap: 8px;
   padding: 12px 18px;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 14px;
   font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-card__footer-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+.auth-card__switch-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12.5px;
+  font-family: inherit;
+  transition: color 0.15s ease;
+}
+
+.auth-card__switch-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 /* استایل فیلد کد تأیید OTP */

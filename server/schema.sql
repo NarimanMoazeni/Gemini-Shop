@@ -22,13 +22,15 @@ CREATE INDEX IF NOT EXISTS idx_admins_username ON admins (LOWER(username));
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(64) PRIMARY KEY,
     full_name VARCHAR(100) NOT NULL,
+    username VARCHAR(50) UNIQUE,
     gmail VARCHAR(150) UNIQUE NOT NULL,
     mobile VARCHAR(20),
-    password_hash VARCHAR(255), -- اختیاری جهت رمزنگاری اطلاعات حساس مشتری
+    password_hash VARCHAR(255), -- هش سالت‌دار PBKDF2 جهت ورود مستقیم بدون نیاز به OTP
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (LOWER(username));
 CREATE INDEX IF NOT EXISTS idx_users_gmail ON users (LOWER(gmail));
 CREATE INDEX IF NOT EXISTS idx_users_mobile ON users (mobile);
 

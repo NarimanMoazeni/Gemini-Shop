@@ -544,12 +544,89 @@ export async function handleApiRequest(req, res) {
       return sendJson(res, 200, { exists });
     }
 
-    // ۲. ارسال کد تایید یکبار مصرف ایمیلی (Send Gmail OTP)
+    // ۱.۶. بررسی آزاد بودن نام کاربری (Check Username Availability)
+    if (pathname === '/api/auth/check-username' && req.method === 'GET') {
+      const username = sanitizeText(url.searchParams.get('username') || '', 50).toLowerCase();
+      if (!username) {
+        return sendJson(res, 200, { exists: false, available: true });
+      }
+      const existsInUsers = db.users.some((u) => u.username && u.username.toLowerCase() === username);
+      const existsInAdmins = db.admins.some((a) => a.username && a.username.toLowerCase() === username);
+      const exists = existsInUsers || existsInAdmins;
+      return sendJson(res, 200, { exists, available: !exists });
+    }
+
+    // ۱.۷. ورود مستقیم خریدار با نام کاربری یا ایمیل و رمز عبور (بدون نیاز به کد یکبارمصرف OTP)
+    if (pathname === '/api/auth/login-password' && req.method === 'POST') {
+      const body = await parseRequestBody(req);
+      const identifier = sanitizeText(body.usernameOrEmail || body.username || body.email || '', 100).toLowerCase();
+      const password = body.password ? String(body.password) : '';
+
+      if (!identifier || !password) {
+        return sendJson(res, 400, {
+          success: false,
+          error: 'لطفاً نام کاربری (یا ایمیل) و رمز عبور خود را وارد نمایید.',
+        });
+      }
+
+      // جستجو در میان مشتریان بر اساس نام کاربری یا جیمیل
+      const user = db.users.find(
+        (u) =>
+          (u.username && u.username.toLowerCase() === identifier) ||
+          normalizeEmail(u.gmail) === identifier
+      );
+
+      if (!user) {
+        return sendJson(res, 404, {
+          success: false,
+          notFound: true,
+          error: 'حساب کاربری با این نام کاربری یا ایمیل یافت نشد. لطفاً ابتدا ثبت‌نام فرمایید.',
+        });
+      }
+
+      if (!user.passwordHash) {
+        return sendJson(res, 400, {
+          success: false,
+          needsOtpSetup: true,
+          error: 'برای حساب شما هنوز رمز عبور ثبت نشده است. لطفاً از طریق ثبت‌نام جدید یا دریافت کد تأیید ایمیلی اقدام نمایید.',
+        });
+      }
+
+      const isMatch = verifyPasswordSecure(password, user.passwordHash);
+      if (!isMatch) {
+        return sendJson(res, 401, {
+          success: false,
+          error: 'رمز عبور وارد شده نادرست است.',
+        });
+      }
+
+      user.lastLoginAt = new Date().toISOString();
+      saveDatabase(db);
+
+      const sessionToken = `usr_${crypto.randomBytes(24).toString('hex')}`;
+      return sendJson(res, 200, {
+        success: true,
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          username: user.username,
+          gmail: user.gmail,
+          mobile: user.mobile,
+          createdAt: user.createdAt,
+        },
+        token: sessionToken,
+        message: 'ورود به حساب کاربری با موفقیت انجام شد.',
+      });
+    }
+
+    // ۲. ارسال کد تایید یکبار مصرف ایمیلی (Send Gmail OTP برای ثبت‌نام یا بازیابی)
     if (pathname === '/api/auth/send-otp' && req.method === 'POST') {
       const body = await parseRequestBody(req);
       const cleanEmail = normalizeEmail(body.email || body.gmail);
       const cleanFullName = sanitizeText(body.fullName || '', 100);
+      const cleanUsername = sanitizeText(body.username || '', 50).toLowerCase();
       const cleanMobile = normalizeMobile(body.mobile || '');
+      const rawPassword = body.password ? String(body.password) : '';
       const mode = body.mode || 'general'; // 'register' | 'login' | 'general'
 
       if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -559,12 +636,25 @@ export async function handleApiRequest(req, res) {
         });
       }
 
+      // بررسی نام کاربری در هنگام ثبت‌نام
+      if (mode === 'register' && cleanUsername) {
+        const userWithUsername = db.users.find((u) => u.username && u.username.toLowerCase() === cleanUsername);
+        const adminWithUsername = db.admins.find((a) => a.username && a.username.toLowerCase() === cleanUsername);
+        if (userWithUsername || adminWithUsername) {
+          return sendJson(res, 409, {
+            success: false,
+            error: 'این نام کاربری قبلاً ثبت شده است. لطفاً نام کاربری دیگری انتخاب فرمایید.',
+            usernameTaken: true,
+          });
+        }
+      }
+
       // قانون یک جیمیل = یک حساب کاربری: جلوگیری از ساخت اکانت تکراری با یک جیمیل
       const existingUserWithEmail = db.users.find((u) => normalizeEmail(u.gmail) === cleanEmail);
       if (mode === 'register' && existingUserWithEmail) {
         return sendJson(res, 409, {
           success: false,
-          error: 'قبلاً با این آدرس جیمیل یک حساب کاربری ثبت شده است. هر کاربر تنها مجاز به داشتن یک حساب با هر جیمیل می‌باشد. لطفاً وارد حساب خود شوید.',
+          error: 'قبلاً با این آدرس جیمیل یک حساب کاربری ثبت شده است. لطفاً با نام کاربری یا ایمیل خود وارد شوید.',
           alreadyExists: true,
         });
       }
@@ -592,6 +682,7 @@ export async function handleApiRequest(req, res) {
 
       // تولید کد ۵ رقمی امن
       const code = String(Math.floor(10000 + Math.random() * 90000));
+      const passwordHash = rawPassword ? hashPasswordSalted(rawPassword) : undefined;
 
       activeOtpStore.set(cleanEmail, {
         code,
@@ -599,6 +690,8 @@ export async function handleApiRequest(req, res) {
         lastSentAt: now,
         attempts: 0,
         fullName: cleanFullName,
+        username: cleanUsername,
+        passwordHash,
         mobile: cleanMobile,
         mode,
       });
@@ -615,13 +708,15 @@ export async function handleApiRequest(req, res) {
       });
     }
 
-    // ۳. اعتبارسنجی کد ایمیلی و ورود خریدار (Verify OTP)
+    // ۳. اعتبارسنجی کد ایمیلی و ثبت نهایی کاربر (Verify OTP)
     if (pathname === '/api/auth/verify-otp' && req.method === 'POST') {
       const body = await parseRequestBody(req);
       const cleanEmail = normalizeEmail(body.email || body.gmail);
       const cleanCode = normalizeMobile(body.code);
       const cleanFullName = sanitizeText(body.fullName || '', 100);
+      const cleanUsername = sanitizeText(body.username || '', 50).toLowerCase();
       const cleanMobile = normalizeMobile(body.mobile || '');
+      const rawPassword = body.password ? String(body.password) : '';
       const mode = body.mode || 'general';
 
       if (!cleanEmail || !cleanCode) {
@@ -679,6 +774,9 @@ export async function handleApiRequest(req, res) {
       }
 
       let user;
+      const finalUsername = record.username || cleanUsername;
+      const finalPasswordHash = record.passwordHash || (rawPassword ? hashPasswordSalted(rawPassword) : null);
+
       if (existingUser) {
         if (cleanFullName && cleanFullName !== 'کاربر گرامی') {
           existingUser.fullName = cleanFullName;
@@ -686,15 +784,23 @@ export async function handleApiRequest(req, res) {
         if (cleanMobile && !existingUser.mobile) {
           existingUser.mobile = cleanMobile;
         }
+        if (finalUsername && !existingUser.username) {
+          existingUser.username = finalUsername;
+        }
+        if (finalPasswordHash && !existingUser.passwordHash) {
+          existingUser.passwordHash = finalPasswordHash;
+        }
         existingUser.lastLoginAt = new Date().toISOString();
         user = existingUser;
       } else {
-        const canonicalId = `cust_${cleanEmail.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+        const canonicalId = `cust_${(finalUsername || cleanEmail).replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
         user = {
           id: canonicalId,
           fullName: cleanFullName || record.fullName || 'کاربر گرامی',
-          mobile: cleanMobile || record.mobile || '',
+          username: finalUsername || '',
           gmail: cleanEmail,
+          mobile: cleanMobile || record.mobile || '',
+          passwordHash: finalPasswordHash,
           createdAt: new Date().toISOString(),
           lastLoginAt: new Date().toISOString(),
         };
@@ -706,9 +812,16 @@ export async function handleApiRequest(req, res) {
 
       return sendJson(res, 200, {
         success: true,
-        user,
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          username: user.username,
+          gmail: user.gmail,
+          mobile: user.mobile,
+          createdAt: user.createdAt,
+        },
         token: sessionToken,
-        message: 'احراز هویت با موفقیت انجام شد.',
+        message: 'احراز هویت و ثبت حساب با موفقیت انجام شد.',
       });
     }
 
