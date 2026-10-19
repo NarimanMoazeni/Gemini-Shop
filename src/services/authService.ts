@@ -44,18 +44,48 @@ export function saveCurrentUser(user: UserProfile) {
 }
 
 /**
+ * بررسی ثبت‌بودن آدرس جیمیل در سیستم
+ */
+export async function checkEmailExists(email: string): Promise<boolean> {
+  const cleanEmail = sanitizeEmail(email);
+  if (!cleanEmail) return false;
+  try {
+    const res = await fetch(`${API_BASE}/auth/check-email?email=${encodeURIComponent(cleanEmail)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return Boolean(data.exists);
+    }
+  } catch (err) {
+    console.warn('Backend unavailable for email check, checking local records:', err);
+  }
+
+  // بررسی حافظه محلی در صورت آفلاین بودن
+  const existing = getCurrentUser();
+  if (existing && sanitizeEmail(existing.gmail) === cleanEmail) return true;
+  try {
+    const registered = JSON.parse(localStorage.getItem('gemini_all_registered_emails') || '[]');
+    return Array.isArray(registered) && registered.includes(cleanEmail);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * درخواست ارسال کد تأیید یکبار مصرف ایمیلی (Email / Gmail OTP)
  */
 export async function requestEmailOtp(
   email: string,
   fullName?: string,
-  mobile?: string
+  mobile?: string,
+  mode: 'register' | 'login' | 'general' = 'general'
 ): Promise<{
   success: boolean;
   message: string;
   cooldownSeconds?: number;
   simulationCode?: string;
   error?: string;
+  alreadyExists?: boolean;
+  notFound?: boolean;
 }> {
   const cleanEmail = sanitizeEmail(email);
   if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -70,6 +100,7 @@ export async function requestEmailOtp(
         email: cleanEmail,
         fullName: sanitizeInput(fullName || ''),
         mobile: sanitizeMobile(mobile || ''),
+        mode,
       }),
     });
 
@@ -87,10 +118,31 @@ export async function requestEmailOtp(
       message: '',
       error: data.error || 'خطا در ارسال کد تأیید ایمیلی. لطفاً مجدداً تلاش کنید.',
       cooldownSeconds: data.remainingSeconds,
+      alreadyExists: data.alreadyExists,
+      notFound: data.notFound,
     };
   } catch (err) {
     console.warn('Backend unavailable for OTP, using offline simulation fallback:', err);
-    // در صورت میزبانی استاتیک روی GitHub Pages بدون سرور مجزا، شبیه‌ساز محلی کد را تولید می‌کند
+    // بررسی آفلاین شرط یک حساب = یک جیمیل
+    const existing = getCurrentUser();
+    const isTaken = existing && sanitizeEmail(existing.gmail) === cleanEmail;
+    if (mode === 'register' && isTaken) {
+      return {
+        success: false,
+        message: '',
+        error: 'قبلاً با این آدرس جیمیل یک حساب کاربری ثبت شده است. لطفاً وارد حساب خود شوید.',
+        alreadyExists: true,
+      };
+    }
+    if (mode === 'login' && !isTaken && !existing) {
+      return {
+        success: false,
+        message: '',
+        error: 'حساب کاربری با این آدرس جیمیل یافت نشد. لطفاً ابتدا ثبت‌نام فرمایید.',
+        notFound: true,
+      };
+    }
+
     const fallbackCode = '12345';
     sessionStorage.setItem(`offline_otp_${cleanEmail}`, fallbackCode);
     return {
@@ -109,12 +161,14 @@ export async function verifyEmailOtp(
   email: string,
   code: string,
   fullName?: string,
-  mobile?: string
+  mobile?: string,
+  mode: 'register' | 'login' | 'general' = 'general'
 ): Promise<{
   success: boolean;
   user?: UserProfile;
   message?: string;
   error?: string;
+  alreadyExists?: boolean;
 }> {
   const cleanEmail = sanitizeEmail(email);
   const cleanCode = sanitizeInput(code).replace(/\D/g, '');
@@ -128,6 +182,7 @@ export async function verifyEmailOtp(
         code: cleanCode,
         fullName: sanitizeInput(fullName || ''),
         mobile: sanitizeMobile(mobile || ''),
+        mode,
       }),
     });
 
@@ -135,9 +190,21 @@ export async function verifyEmailOtp(
     if (res.ok && data.success) {
       const user: UserProfile = data.user;
       saveCurrentUser(user);
+      // ثبت ایمیل در کش محلی
+      try {
+        const registered = JSON.parse(localStorage.getItem('gemini_all_registered_emails') || '[]');
+        if (!registered.includes(cleanEmail)) {
+          registered.push(cleanEmail);
+          localStorage.setItem('gemini_all_registered_emails', JSON.stringify(registered));
+        }
+      } catch {}
       return { success: true, user, message: data.message };
     }
-    return { success: false, error: data.error || 'کد تایید وارد شده نادرست است.' };
+    return {
+      success: false,
+      error: data.error || 'کد تایید وارد شده نادرست است.',
+      alreadyExists: data.alreadyExists,
+    };
   } catch (err) {
     console.warn('Backend unavailable, validating against offline simulation:', err);
     const saved = sessionStorage.getItem(`offline_otp_${cleanEmail}`);

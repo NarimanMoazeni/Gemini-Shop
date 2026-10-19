@@ -18,6 +18,8 @@ import { getCurrentUser, type UserProfile } from './services/authService';
 export default function App() {
   const product = useProduct(); // قیمت و اطلاعات محصول فقط از لایه‌ی سرویس/config
   const [checkout, setCheckout] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
+  const [isReturnFromGateway, setIsReturnFromGateway] = useState(false);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackOrderId, setTrackOrderId] = useState<string | undefined>(undefined);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -41,6 +43,19 @@ export default function App() {
     const checkAdminTrigger = () => {
       const hash = window.location.hash.toLowerCase();
       const params = new URLSearchParams(window.location.search);
+
+      // تشخیص بازگشت از درگاه پرداخت بزن به کارت و ادامه خرید در مرحله ۲
+      if (
+        params.get('payment') === 'success' ||
+        params.get('return_gateway') === '1' ||
+        params.get('status') === 'success' ||
+        hash === '#payment-success'
+      ) {
+        setCheckoutStep(2);
+        setIsReturnFromGateway(true);
+        setCheckout(true);
+      }
+
       if (
         hash === '#admin-portal' ||
         hash === '#admin' ||
@@ -145,7 +160,16 @@ export default function App() {
       <CheckoutModal
         product={product}
         open={checkout}
-        onClose={closeCheckout}
+        initialStep={checkoutStep}
+        isReturnFromGateway={isReturnFromGateway}
+        onClose={() => {
+          closeCheckout();
+          setCheckoutStep(1);
+          setIsReturnFromGateway(false);
+          if (window.location.search.includes('payment=success') || window.location.search.includes('return_gateway=1')) {
+            history.replaceState(null, '', window.location.pathname);
+          }
+        }}
         onTrackOrder={(orderId) => openTracking(orderId)}
         onOpenProfile={openProfile}
       />

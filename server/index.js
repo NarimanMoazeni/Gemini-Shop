@@ -537,17 +537,43 @@ export async function handleApiRequest(req, res) {
       });
     }
 
+    // ۱.۵. بررسی وجود حساب با جیمیل (Check Email Existence)
+    if (pathname === '/api/auth/check-email' && req.method === 'GET') {
+      const email = normalizeEmail(url.searchParams.get('email') || '');
+      const exists = db.users.some((u) => normalizeEmail(u.gmail) === email);
+      return sendJson(res, 200, { exists });
+    }
+
     // ۲. ارسال کد تایید یکبار مصرف ایمیلی (Send Gmail OTP)
     if (pathname === '/api/auth/send-otp' && req.method === 'POST') {
       const body = await parseRequestBody(req);
       const cleanEmail = normalizeEmail(body.email || body.gmail);
       const cleanFullName = sanitizeText(body.fullName || '', 100);
       const cleanMobile = normalizeMobile(body.mobile || '');
+      const mode = body.mode || 'general'; // 'register' | 'login' | 'general'
 
       if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
         return sendJson(res, 400, {
           success: false,
           error: 'آدرس ایمیل وارد شده معتبر نیست. لطفاً یک ایمیل صحیح وارد فرمایید.',
+        });
+      }
+
+      // قانون یک جیمیل = یک حساب کاربری: جلوگیری از ساخت اکانت تکراری با یک جیمیل
+      const existingUserWithEmail = db.users.find((u) => normalizeEmail(u.gmail) === cleanEmail);
+      if (mode === 'register' && existingUserWithEmail) {
+        return sendJson(res, 409, {
+          success: false,
+          error: 'قبلاً با این آدرس جیمیل یک حساب کاربری ثبت شده است. هر کاربر تنها مجاز به داشتن یک حساب با هر جیمیل می‌باشد. لطفاً وارد حساب خود شوید.',
+          alreadyExists: true,
+        });
+      }
+
+      if (mode === 'login' && !existingUserWithEmail) {
+        return sendJson(res, 404, {
+          success: false,
+          error: 'حساب کاربری با این آدرس جیمیل یافت نشد. لطفاً ابتدا ثبت‌نام فرمایید.',
+          notFound: true,
         });
       }
 
@@ -574,6 +600,7 @@ export async function handleApiRequest(req, res) {
         attempts: 0,
         fullName: cleanFullName,
         mobile: cleanMobile,
+        mode,
       });
 
       // ارسال ایمیل از طریق جیمیل SMTP
@@ -595,6 +622,7 @@ export async function handleApiRequest(req, res) {
       const cleanCode = normalizeMobile(body.code);
       const cleanFullName = sanitizeText(body.fullName || '', 100);
       const cleanMobile = normalizeMobile(body.mobile || '');
+      const mode = body.mode || 'general';
 
       if (!cleanEmail || !cleanCode) {
         return sendJson(res, 400, { success: false, error: 'آدرس ایمیل و کد تایید الزامی است.' });
@@ -639,8 +667,16 @@ export async function handleApiRequest(req, res) {
 
       // جلوگیری از ایجاد کاربر تکراری: جستجو در میان مشتریان ثبت شده
       let existingUser = db.users.find(
-        (u) => normalizeEmail(u.gmail) === cleanEmail || (cleanMobile && normalizeMobile(u.mobile) === cleanMobile)
+        (u) => normalizeEmail(u.gmail) === cleanEmail
       );
+
+      if (mode === 'register' && existingUser) {
+        return sendJson(res, 409, {
+          success: false,
+          error: 'قبلاً با این آدرس جیمیل یک حساب کاربری ثبت شده است. امکان ایجاد حساب تکراری وجود ندارد.',
+          alreadyExists: true,
+        });
+      }
 
       let user;
       if (existingUser) {

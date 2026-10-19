@@ -13,6 +13,7 @@ interface Props {
 
 export function AuthModal({ open, onClose, onSuccess }: Props) {
   useBodyScrollLock(open);
+  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
   const [step, setStep] = useState<1 | 2>(1);
   const [fullName, setFullName] = useState('');
   const [gmail, setGmail] = useState('');
@@ -21,6 +22,8 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alreadyExists, setAlreadyExists] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [simulationCode, setSimulationCode] = useState<string | null>(null);
 
   // تایمر ۶۰ ثانیه‌ای ارسال مجدد کد
@@ -33,6 +36,8 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
   useEffect(() => {
     if (open) {
       setError(null);
+      setAlreadyExists(false);
+      setNotFound(false);
       setSimulationCode(null);
       setStep(1);
       setOtpCode('');
@@ -58,12 +63,14 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
 
   if (!open) return null;
 
-  // مرحله ۱: ارسال کد تایید به جیمیل خریدار
+  // مرحله ۱: ارسال کد تایید به جیمیل خریدار با بررسی یکتا بودن اکانت
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAlreadyExists(false);
+    setNotFound(false);
 
-    if (fullName.trim().length < 3) {
+    if (authMode === 'register' && fullName.trim().length < 3) {
       setError('لطفاً نام و نام خانوادگی خود را کامل وارد فرمایید.');
       return;
     }
@@ -74,14 +81,14 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
       return;
     }
 
-    if (mobile.trim() && !isValidIranianMobile(mobile)) {
+    if (authMode === 'register' && mobile.trim() && !isValidIranianMobile(mobile)) {
       setError('شماره موبایل وارد شده باید ۱۱ رقم و با ۰۹ شروع شود.');
       return;
     }
 
     setLoading(true);
     const cleanMobile = sanitizeMobile(mobile);
-    const result = await requestEmailOtp(cleanGmail, fullName, cleanMobile);
+    const result = await requestEmailOtp(cleanGmail, fullName, cleanMobile, authMode);
     setLoading(false);
 
     if (result.success) {
@@ -93,6 +100,8 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
       setTimeout(() => otpInputRef.current?.focus(), 100);
     } else {
       setError(result.error || 'خطا در ارسال کد تایید ایمیلی.');
+      if (result.alreadyExists) setAlreadyExists(true);
+      if (result.notFound) setNotFound(true);
     }
   };
 
@@ -100,6 +109,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAlreadyExists(false);
 
     const cleanCode = otpCode.trim().replace(/\D/g, '');
     if (cleanCode.length < 4) {
@@ -110,7 +120,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
     setLoading(true);
     const cleanGmail = sanitizeEmail(gmail);
     const cleanMobile = sanitizeMobile(mobile);
-    const result = await verifyEmailOtp(cleanGmail, cleanCode, fullName, cleanMobile);
+    const result = await verifyEmailOtp(cleanGmail, cleanCode, fullName, cleanMobile, authMode);
     setLoading(false);
 
     if (result.success && result.user) {
@@ -118,6 +128,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
       onClose();
     } else {
       setError(result.error || 'کد تایید وارد شده نادرست است.');
+      if (result.alreadyExists) setAlreadyExists(true);
     }
   };
 
@@ -129,7 +140,7 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
 
     const cleanGmail = sanitizeEmail(gmail);
     const cleanMobile = sanitizeMobile(mobile);
-    const result = await requestEmailOtp(cleanGmail, fullName, cleanMobile);
+    const result = await requestEmailOtp(cleanGmail, fullName, cleanMobile, authMode);
     setLoading(false);
 
     if (result.success) {
@@ -147,20 +158,92 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
       <div className="auth-card" role="dialog" aria-modal="true">
         <div className="auth-card__header">
           <div className="auth-card__icon-wrap">
-            <Icon name={step === 1 ? 'user' : 'shield'} size={24} />
+            <Icon name={step === 1 ? (authMode === 'register' ? 'user' : 'shield') : 'shield'} size={24} />
           </div>
-          <h2>{step === 1 ? 'ورود به حساب با تأیید ایمیل' : 'تأیید آدرس ایمیل'}</h2>
-          <p>
-            {step === 1
-              ? 'جهت امنیت و پیگیری سفارشات، ورود از طریق کد یکبارمصرف ارسالی به ایمیل انجام می‌شود'
-              : `کد تایید ۵ رقمی ارسال‌شده به ${gmail} را وارد فرمایید:`}
-          </p>
+
+          {step === 1 ? (
+            <>
+              {/* تب‌های انتخاب میان ایجاد حساب جدید یا ورود */}
+              <div className="auth-card__tabs">
+                <button
+                  type="button"
+                  className={`auth-card__tab ${authMode === 'register' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAuthMode('register');
+                    setError(null);
+                    setAlreadyExists(false);
+                    setNotFound(false);
+                  }}
+                >
+                  ایجاد حساب جدید
+                </button>
+                <button
+                  type="button"
+                  className={`auth-card__tab ${authMode === 'login' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAuthMode('login');
+                    setError(null);
+                    setAlreadyExists(false);
+                    setNotFound(false);
+                  }}
+                >
+                  ورود به حساب
+                </button>
+              </div>
+
+              <p>
+                {authMode === 'register'
+                  ? 'هر کاربر تنها مجاز به ساخت یک حساب با هر آدرس جیمیل می‌باشد.'
+                  : 'اگر قبلاً حسابی ساخته‌اید، آدرس جیمیل خود را جهت دریافت کد ورود وارد کنید.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>تأیید آدرس ایمیل</h2>
+              <p>کد تایید ۵ رقمی ارسال‌شده به <span className="en font-bold text-blue-600">{gmail}</span> را وارد فرمایید:</p>
+            </>
+          )}
+
           <button className="auth-card__close" onClick={onClose} aria-label="بستن">
             <Icon name="close" size={18} />
           </button>
         </div>
 
-        {error && <div className="auth-card__error">{error}</div>}
+        {error && (
+          <div className="auth-card__error-box">
+            <div className="auth-card__error">{error}</div>
+            {alreadyExists && (
+              <button
+                type="button"
+                className="btn btn--outline auth-card__quick-switch-btn"
+                onClick={() => {
+                  setAuthMode('login');
+                  setError(null);
+                  setAlreadyExists(false);
+                  setStep(1);
+                }}
+              >
+                <span>ورود به حساب با این ایمیل</span>
+                <Icon name="arrow" size={14} />
+              </button>
+            )}
+            {notFound && (
+              <button
+                type="button"
+                className="btn btn--outline auth-card__quick-switch-btn"
+                onClick={() => {
+                  setAuthMode('register');
+                  setError(null);
+                  setNotFound(false);
+                  setStep(1);
+                }}
+              >
+                <span>ثبت‌نام و ایجاد حساب جدید</span>
+                <Icon name="arrow" size={14} />
+              </button>
+            )}
+          </div>
+        )}
 
         {simulationCode && (
           <div className="auth-card__sim-code">
@@ -178,21 +261,28 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
 
         {step === 1 ? (
           <form onSubmit={handleRequestOtp} className="auth-card__form">
-            <div className="auth-card__field">
-              <label>نام و نام خانوادگی:</label>
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="مثال: علی محمدی"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </div>
+            {authMode === 'register' && (
+              <div className="auth-card__field">
+                <label>نام و نام خانوادگی:</label>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="مثال: علی محمدی"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             <div className="auth-card__field">
-              <label>آدرس ایمیل / جیمیل شخصی (جهت دریافت کد تأیید):</label>
+              <label>
+                {authMode === 'register'
+                  ? 'آدرس ایمیل / جیمیل شخصی (جهت دریافت کد تأیید):'
+                  : 'آدرس ایمیل / جیمیل ثبت‌شده:'}
+              </label>
               <input
+                ref={authMode === 'login' ? inputRef : undefined}
                 type="email"
                 placeholder="name@gmail.com"
                 dir="ltr"
@@ -200,20 +290,24 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                 onChange={(e) => setGmail(e.target.value)}
                 required
               />
-              <small>اکانت جیمیل شما که اشتراک ۱۸ ماهه Google AI Pro روی آن فعال خواهد شد</small>
+              <small className="auth-card__hint">
+                کد تأیید ورود و فعال‌سازی برای شما به این آدرس جیمیل ارسال خواهد شد
+              </small>
             </div>
 
-            <div className="auth-card__field">
-              <label>شماره تماس همراه (جهت هماهنگی و پشتیبانی):</label>
-              <input
-                type="tel"
-                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                dir="ltr"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                required
-              />
-            </div>
+            {authMode === 'register' && (
+              <div className="auth-card__field">
+                <label>شماره تماس همراه (جهت هماهنگی و پشتیبانی):</label>
+                <input
+                  type="tel"
+                  placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                  dir="ltr"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             <div className="auth-card__actions">
               <button
@@ -221,7 +315,13 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                 className="btn btn--accent auth-card__submit-btn"
                 disabled={loading}
               >
-                <span>{loading ? 'در حال ارسال ایمیل...' : 'دریافت کد تایید ایمیلی'}</span>
+                <span>
+                  {loading
+                    ? 'در حال ارسال ایمیل...'
+                    : authMode === 'register'
+                    ? 'دریافت کد تایید و ساخت حساب'
+                    : 'ارسال کد تایید ورود'}
+                </span>
                 <Icon name="arrow" size={16} />
               </button>
             </div>
@@ -278,7 +378,13 @@ export function AuthModal({ open, onClose, onSuccess }: Props) {
                 className="btn btn--accent auth-card__submit-btn"
                 disabled={loading}
               >
-                <span>{loading ? 'در حال بررسی کد...' : 'تایید و ورود به حساب'}</span>
+                <span>
+                  {loading
+                    ? 'در حال بررسی کد...'
+                    : authMode === 'register'
+                    ? 'تایید کد و ساخت حساب'
+                    : 'تایید و ورود به حساب'}
+                </span>
                 <Icon name="check" size={16} />
               </button>
             </div>

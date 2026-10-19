@@ -107,7 +107,7 @@ export function Hero({ product, onBuy }: Props) {
                   <span className="luxury-card__check">
                     <Icon name="check" size={13} />
                   </span>
-                  <span>اشتراک ۱۸ ماهه با ۱ ماه رایگان</span>
+                  <span>اشتراک ۱۸ ماهه با ۱ ماه پشتیبانی رایگان</span>
                 </li>
                 <li>
                   <span className="luxury-card__check">

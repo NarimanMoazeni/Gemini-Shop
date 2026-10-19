@@ -14,14 +14,16 @@ interface Props {
   onClose: () => void;
   onTrackOrder?: (orderId: string) => void;
   onOpenProfile?: () => void;
+  initialStep?: 1 | 2 | 3;
+  isReturnFromGateway?: boolean;
 }
 
 const normalizeDigits = (s: string) =>
   s.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
 
-export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProfile }: Props) {
+export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProfile, initialStep = 1, isReturnFromGateway }: Props) {
   useBodyScrollLock(open);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(initialStep);
   const [fullName, setFullName] = useState('');
   const [mobile, setMobile] = useState('');
   const [gmail, setGmail] = useState('');
@@ -63,6 +65,19 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
 
   useEffect(() => {
     if (!open) return;
+    if (initialStep) setStep(initialStep);
+    
+    // بازگردانی اطلاعات ذخیره‌شده فرم در صورت بازگشت از درگاه پرداخت
+    const savedPending = localStorage.getItem('gemini_pending_checkout');
+    if (savedPending) {
+      try {
+        const parsed = JSON.parse(savedPending);
+        if (parsed.fullName) setFullName(parsed.fullName);
+        if (parsed.mobile) setMobile(parsed.mobile);
+        if (parsed.gmail) setGmail(parsed.gmail);
+      } catch {}
+    }
+
     const existing = getCurrentUser();
     if (existing) {
       if (!fullName && existing.fullName) setFullName(existing.fullName);
@@ -373,7 +388,7 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
                     <em role="alert">{errors.gmail}</em>
                   ) : (
                     <span className="field__hint">
-                      🔒 کد تایید و لینک فعال‌سازی اختصاصی مستقیماً به همین ایمیل ارسال خواهد شد
+                      🔒 کد تأیید ورود و فعال‌سازی برای شما به این آدرس جیمیل ارسال خواهد شد
                     </span>
                   )}
                 </label>
@@ -430,6 +445,16 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
               </button>
             </div>
 
+            {isReturnFromGateway && (
+              <div className="pay-return-banner glass" style={{ marginBottom: '14px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.08)', padding: '12px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>✅</span>
+                <div>
+                  <strong style={{ display: 'block', color: '#047857', fontSize: '13.5px' }}>بازگشت موفق از درگاه پرداخت «بزن به کارت»</strong>
+                  <span style={{ fontSize: '12px', color: '#065f46' }}>پرداخت شما در درگاه ثبت شد. لطفاً کد پیگیری یا شماره ارجاع فیش را در کادر زیر وارد کرده و دکمه نهایی را بزنید.</span>
+                </div>
+              </div>
+            )}
+
             {paymentMethod === 'bezanbekart' ? (
               <div className="pay-box glass">
                 <div className="pay-box__head">
@@ -437,14 +462,22 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
                   <span className="badge-tag">سریع و آسان</span>
                 </div>
                 <p className="pay-box__desc">
-                  روی دکمه زیر کلیک کنید تا وارد صفحه پرداخت شخصی ما در «بزن به کارت» شوید. پس از اتمام پرداخت، کد
-                  پیگیری یا شماره ارجاع را در کادر پایین وارد کنید.
+                  روی دکمه زیر کلیک کنید تا وارد صفحه پرداخت شخصی ما در «بزن به کارت» شوید. پس از اتمام پرداخت، دکمه «بازگشت به سایت» را بزنید یا کد
+                  پیگیری را در کادر پایین وارد کنید.
                 </p>
                 <a
-                  href={PAYMENT_CONFIG.paymentUrl}
+                  href={`${PAYMENT_CONFIG.paymentUrl}?callback=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/?payment=success` : '')}&redirect_url=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/?payment=success` : '')}`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn btn--outline pay-box__action-btn"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem(
+                        'gemini_pending_checkout',
+                        JSON.stringify({ fullName, mobile, gmail, amountToman: product.priceToman })
+                      );
+                    } catch {}
+                  }}
                 >
                   <Icon name="external" size={18} />
                   ورود به درگاه پرداخت بزن به کارت
