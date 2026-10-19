@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- درج تنظیمات اولیه در صورت عدم وجود
 INSERT INTO settings (key, value)
 VALUES 
-    ('pricing', '{"priceToman": 499000}'),
+    ('pricing', '{"priceToman": 599000}'),
     ('payment', '{"cardNumber": "6037997512345678", "cardHolder": "نریمان موذنی", "bankName": "بانک ملی ایران"}'),
     ('smtp', '{"host": "smtp.gmail.com", "port": 465, "user": "", "configured": false}')
 ON CONFLICT (key) DO NOTHING;

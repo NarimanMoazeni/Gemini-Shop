@@ -133,7 +133,7 @@ const defaultData = {
   users: [],
   settings: {
     adminPassword: hashPasswordSalted(initialAdminPass),
-    priceToman: 499000,
+    priceToman: 599000,
     smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
     smtpPort: Number(process.env.SMTP_PORT) || 465,
     smtpUser: process.env.SMTP_USER || '',
@@ -781,7 +781,7 @@ export async function handleApiRequest(req, res) {
         mobile: cleanOrderMobile,
         gmail: cleanOrderEmail,
         productName: sanitizeText(body.productName || 'اشتراک ۱۸ ماهه Google AI Pro', 100),
-        amountToman: Number(body.amountToman) || db.settings.priceToman || 499000,
+        amountToman: Number(body.amountToman) || db.settings.priceToman || 599000,
         paymentMethod: body.paymentMethod === 'card_to_card' ? 'card_to_card' : 'bezanbekart',
         paymentRef: sanitizeText(body.paymentRef || '', 60),
         status: 'pending_verification',

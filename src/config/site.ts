@@ -31,7 +31,7 @@ export const PRODUCT: Product = {
   id: 'google-ai-pro',
   name: 'اشتراک ۱۸ ماهه Google AI Pro',
   badgeLabel: 'اشتراک ۱۸ ماهه Gemini Pro',
-  priceToman: 499_000,
+  priceToman: 599_000,
   compareAtToman: 75_600_000, // ارزش دلاری رسمی ۱۸ ماهه ($360 معادل ماهیانه ۱۹.۹۹ دلار)
   dollarPrice: 360,
   periodMonths: 18,

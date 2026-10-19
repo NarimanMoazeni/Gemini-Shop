@@ -184,7 +184,7 @@ function generateSmartReply(sessionId: string, text: string): ChatMessage | unde
       id: `bot_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       sessionId,
       sender: 'bot',
-      text: `مراحل فعال‌سازی اشتراک:\n۱. ثبت سفارش و ثبت شماره پیگیری واریز ۴۹۹,۰۰۰ تومان در سایت.\n۲. ارسال دعوت‌نامه رسمی گوگل به جیمیل شخصی شما ظرف ۲ الی ۴۸ ساعت کاری.\n۳. پذیرش دعوت بدون نیاز به در اختیار گذاشتن رمز عبور جیمیل و فعال‌شدن اشتراک ۱۸ ماهه.`,
+      text: `مراحل فعال‌سازی اشتراک:\n۱. ثبت سفارش و ثبت شماره پیگیری واریز ۵۹۹,۰۰۰ تومان در سایت.\n۲. ارسال دعوت‌نامه رسمی گوگل به جیمیل شخصی شما ظرف ۲ الی ۴۸ ساعت کاری.\n۳. پذیرش دعوت بدون نیاز به در اختیار گذاشتن رمز عبور جیمیل و فعال‌شدن اشتراک ۱۸ ماهه.`,
       createdAt: new Date().toISOString(),
     };
   }
@@ -195,7 +195,7 @@ function generateSmartReply(sessionId: string, text: string): ChatMessage | unde
       id: `bot_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       sessionId,
       sender: 'bot',
-      text: `اطلاعات واریز رسمی فروشگاه:\nشماره کارت: ${PAYMENT_CONFIG.cardNumber}\nنام دارنده: ${PAYMENT_CONFIG.cardHolder} (${PAYMENT_CONFIG.bankName})\nشماره شبا: ${PAYMENT_CONFIG.shabaNumber}\nمبلغ: ۴۹۹,۰۰۰ تومان\nپس از پرداخت، شماره پیگیری را در فرم خرید سایت ثبت فرمایید.`,
+      text: `اطلاعات واریز رسمی فروشگاه:\nشماره کارت: ${PAYMENT_CONFIG.cardNumber}\nنام دارنده: ${PAYMENT_CONFIG.cardHolder} (${PAYMENT_CONFIG.bankName})\nشماره شبا: ${PAYMENT_CONFIG.shabaNumber}\nمبلغ: ۵۹۹,۰۰۰ تومان\nپس از پرداخت، شماره پیگیری را در فرم خرید سایت ثبت فرمایید.`,
       createdAt: new Date().toISOString(),
     };
   }
