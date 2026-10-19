@@ -214,6 +214,9 @@ function normalizeEmail(email) {
 
 // پردازش امن بدنه درخواست‌های JSON با کنترل حجم
 function parseRequestBody(req) {
+  if (req.body && typeof req.body === 'object') {
+    return Promise.resolve(req.body);
+  }
   return new Promise((resolve, reject) => {
     let body = '';
     let bytes = 0;
@@ -231,7 +234,7 @@ function parseRequestBody(req) {
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch {
-        reject(new Error('Invalid JSON payload'));
+        resolve({});
       }
     });
 
@@ -505,7 +508,7 @@ function isHeadAdmin(req) {
   return admin && admin.role === 'head_admin';
 }
 
-const server = http.createServer(async (req, res) => {
+export async function handleApiRequest(req, res) {
   // CORS Preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, getCorsHeaders(req));
@@ -1107,10 +1110,17 @@ const server = http.createServer(async (req, res) => {
     console.error('Server execution error:', err.message);
     return sendJson(res, 500, { error: 'Internal server error' });
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`🛡️  Secure Gemini Shop Backend running on http://localhost:${PORT}`);
-  console.log(`✉️  Email OTP Engine: Ready via TLS Port 465`);
-  console.log(`👥 Multi-Tier RBAC Admin System: Initialized`);
-});
+const server = http.createServer(handleApiRequest);
+
+// اگر فایل مستقیماً در لینوکس یا VPS اجرا شود، سرور لوکال لیسن می‌کند
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, () => {
+    console.log(`🛡️  Secure Gemini Shop Backend running on http://localhost:${PORT}`);
+    console.log(`✉️  Email OTP Engine: Ready via TLS Port 465`);
+    console.log(`👥 Multi-Tier RBAC Admin System: Initialized`);
+  });
+}
+
+export default handleApiRequest;

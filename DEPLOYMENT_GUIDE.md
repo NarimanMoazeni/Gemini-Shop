@@ -1,130 +1,120 @@
-# 🌐 راهنمای جامع استقرار و انتشار (Deployment Guide)
+# 🚀 راهنمای جامع و صفر تا صد استقرار روی Cloudflare و Vercel (با دیتابیس ابری و Gmail OTP)
 
-این راهنما نحوه استقرار پروژه **Gemini Shop** را روی انواع بسترهای ابری و سرورهای میزبانی توضیح می‌دهد.
+این سند، راهنمای رسمی، گام‌به‌گام و استاندارد برای استقرار کامل پروژه **Gemini Shop** بر روی دو پلتفرم قدرتمند ابری **Cloudflare Pages** (برای میزبانی فرانت‌اند با CDN جهانی و امنیت DDoS) و **Vercel** (برای پردازش توابع سرورلس، دیتابیس و ارسال کدهای تأیید ایمیلی Gmail OTP) می‌باشد.
 
 ---
 
-## 📦 روش اول: انتشار استاتیک فرانت‌اند (سریع‌ترین و کم‌هزینه‌ترین)
+## 🏗️ معماری نهایی سیستم (System Architecture)
 
-پروژه به صورت مستقل با حافظه مرورگر (LocalStorage) و همگام‌سازی کلاینت بدون نیاز به سرور فعال عمل می‌کند. این روش برای پلتفرم‌های ابری رایگان و با ترافیک بالا بسیار ایده‌آل است.
-
-### مراحل ساخت بیلد:
-```bash
-npm run build
 ```
-پوشه خروجی `dist/` تمام فایل‌های نهایی شامل `index.html`، فایل‌های CSS، جاوااسکریپت و تصاویر بهینه‌سازی‌شده را دارا می‌باشد.
-
-### الف) آپلود در Cloudflare Pages / Vercel:
-1. پروژه را به گیت‌هاب (GitHub) متصل کنید.
-2. در داشبورد پلتفرم، یک پروژه جدید بسازید:
-   - **Framework Preset:** Vite
-   - **Build Command:** `npm run build`
-   - **Build Output Directory:** `dist`
-3. دکمه Deploy را بزنید. سایت در کمتر از ۱ دقیقه با CDN جهانی و گواهی SSL رایگان در دسترس خواهد بود.
-
-### ب) آپلود در هاست‌های اشتراکی سی‌پنل (cPanel) یا دایرکت‌ادمین:
-1. وارد File Manager هاست شوید.
-2. به مسیر `public_html` بروید.
-3. تمام محتویات داخل پوشه `dist/` (نه خود پوشه `dist`، بلکه فایل‌های درون آن) را در `public_html` آپلود و استخراج نمایید.
-4. در صورت نیاز به ریدایرکت SPA، یک فایل به نام `.htaccess` در `public_html` بسازید و محتوای زیر را در آن قرار دهید:
-```apache
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
-</IfModule>
+[کاربران و خریداران در سراسر دنیا]
+               │
+               ▼
+   [Cloudflare Pages - فرانت‌اند]
+   - بارگذاری فوق‌سریع و کش جهانی CDN
+   - گواهی SSL رایگان و محافظت DDoS
+   - اتصال دامنه اختصاصی (.ir یا .com)
+               │
+               ▼ (درخواست‌های /api/*)
+       [Vercel Serverless API]
+               ├── ارسال ایمیل کد OTP ۵ رقمی از طریق پورت TLS 465 گوگل
+               └── ذخیره و بازیابی در [دیتابیس ابری Neon / Supabase]
 ```
 
 ---
 
-## 🖥️ روش دوم: استقرار فول‌استک روی سرور مجازی (Ubuntu VPS) با PM2 و NGINX
+## 📋 گام اول: ساخت دیتابیس ابری رایگان (Neon PostgreSQL یا Supabase)
 
-اگر می‌خواهید بک‌اند Node.js را نیز به صورت دائم و متمرکز فعال داشته باشید:
+برای ذخیره‌سازی دائمی سفارشات، اطلاعات مشتریان و سطوح دسترسی ادمین‌ها، بهترین گزینه استفاده از یک دیتابیس ابری پایدار و پرسرعت است:
 
-### ۱. نصب پیش‌نیازها روی سرور لینوکس:
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install nodejs npm nginx -y
-sudo npm install -g pm2
-```
-
-### ۲. انتقال پروژه به سرور:
-پوشه پروژه را در مسیر `/var/www/gemini-store` قرار دهید.
-
-### ۳. راه‌اندازی سرویس بک‌اند با PM2:
-```bash
-cd /var/www/gemini-store
-pm2 start server/index.js --name "gemini-store-api"
-pm2 save
-pm2 startup
-```
-
-### ۴. ساخت بیلد فرانت‌اند:
-```bash
-cd /var/www/gemini-store
-npm install
-npm run build
-```
-
-### ۵. تنظیم NGINX:
-فایل تنظیمات سایت را ویرایش کنید (`sudo nano /etc/nginx/sites-available/gemini-store`):
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # فایل‌های فرانت‌اند
-    root /var/www/gemini-store/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # هدایت درخواست‌های API به بک‌اند Node.js
-    location /api/ {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-سپس تنظیمات را فعال کنید:
-```bash
-sudo ln -s /etc/nginx/sites-available/gemini-store /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-### ۶. فعال‌سازی گواهی رایگان SSL (Let's Encrypt):
-```bash
-sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
-```
+### روش راه‌اندازی در Neon.tech (پیشنهادی - ۱۰۰٪ رایگان و فوق‌سریع):
+1. وارد سایت [https://neon.tech](https://neon.tech) شوید و با اکانت گیت‌هاب خود لاگین کنید.
+2. روی دکمه **Create Project** کلیک کنید:
+   - **Project Name:** `gemini-shop-db`
+   - **Region:** نزدیک‌ترین منطقه (مثلاً `Frankfurt - eu-central-1`)
+3. پس از ساخته شدن پروژه، به تب **SQL Editor** بروید.
+4. فایل [`server/schema.sql`](file:///C:/Users/NariManoV/Pictures/Gemini%20pro%20logo/gemini-pro-store-frontend/server/schema.sql) موجود در سورس پروژه را باز کنید، کل کدهای SQL آن را کپی کرده و در SQL Editor نئون پیست کنید و دکمه **Run** را بزنید.
+   - *تمام جداول `admins`، `users`، `orders`، `otp_codes`، `chat_messages` و `settings` با ایندکس‌های پرسرعت ساخته می‌شوند.*
+5. از داشبورد Neon، آدرس اتصال پایگاه داده (**Connection String** / `DATABASE_URL`) را کپی و یادداشت کنید:
+   ```text
+   postgresql://user:password@ep-xyz.eu-central-1.aws.neon.tech/gemini-shop-db?sslmode=require
+   ```
 
 ---
 
-## ☁️ روش سوم: استقرار سریع روی پلتفرم لیارا (Liara)
+## 🔑 گام دوم: دریافت رمز عبور اپلیکیشن جیمیل (Gmail App Password)
 
-1. یک برنامه از نوع **NodeJS** در پنل لیارا ایجاد نمایید.
-2. یک فایل `liara.json` در ریشه پروژه قرار دهید:
-```json
-{
-  "app": "gemini-pro-store",
-  "port": 3001,
-  "node": {
-    "version": "18"
-  }
-}
-```
-3. دستور استقرار را اجرا کنید:
-```bash
-liara deploy
-```
+جهت فعال‌سازی ارسال زنده کدهای تأیید ۵ رقمی OTP به ایمیل خریداران از طریق پورت ۴۶۵:
+
+1. به حساب گوگل خود در [https://myaccount.google.com](https://myaccount.google.com) بروید.
+2. وارد بخش **Security** (امنیت) شوید و اطمینان حاصل کنید **2-Step Verification** (تأیید دو مرحله‌ای) اکانت فعال باشد.
+3. در کادر جستجوی بالای تنظیمات گوگل، عبارت **App Passwords** (رمزهای عبور برنامه) را جستجو کنید.
+4. یک رمز جدید به نام `Gemini Shop` بسازید.
+5. گوگل یک کد **۱۶ کاراکتری اختصاصی** (مثلاً `abcd efgh ijkl mnop`) به شما نمایش می‌دهد. این کد را بدون فاصله کپی کنید.
+
+---
+
+## ⚡ گام سوم: دیپلوی بک‌اند روی Vercel (جهت API و ارسال ایمیل)
+
+1. وارد سایت [https://vercel.com](https://vercel.com) شوید و با اکانت گیت‌هاب لاگین کنید.
+2. روی **Add New...** -> **Project** کلیک کرده و مخزن **`NariManoV21/Gemini-Shop`** را انتخاب و دکمه **Import** را بزنید.
+3. در تنظیمات پروژه:
+   - **Framework Preset:** `Vite` (یا `Other`)
+   - **Root Directory:** `./`
+4. بخش **Environment Variables** (متغیرهای محیطی) را باز کنید و مقادیر زیر را اضافه کنید:
+   - `SMTP_USER`: آدرس جیمیل شما (مثلاً `yourshop@gmail.com`)
+   - `SMTP_PASS`: کد ۱۶ رقمی App Password مرحله قبل (بدون فاصله)
+   - `SMTP_HOST`: `smtp.gmail.com`
+   - `SMTP_PORT`: `465`
+   - `DATABASE_URL`: آدرس دیتابیس ابری کپی‌شده از Neon در گام اول
+   - `ADMIN_PASSWORD`: رمز اولیه مدیریت (مثلاً یک رمز امن دلخواه)
+5. روی دکمه **Deploy** کلیک کنید.
+6. پس از اتمام دیپلوی، ورسل یک دامنه به شما می‌دهد (مثلاً `https://gemini-shop-backend.vercel.app`).
+   - مسیر API شما این خواهد بود: `https://gemini-shop-backend.vercel.app/api`
+
+---
+
+## ☁️ گام چهارم: دیپلوی فرانت‌اند روی Cloudflare Pages
+
+1. وارد داشبورد کلادفلر به نشانی [https://dash.cloudflare.com](https://dash.cloudflare.com) شوید.
+2. از منوی سمت چپ به مسیر **Workers & Pages** -> **Overview** بروید.
+3. روی دکمه **Create application** و سپس سربرگ **Pages** کلیک کنید.
+4. گزینه **Connect to Git** را انتخاب کرده و دسترسی به مخزن **`NariManoV21/Gemini-Shop`** را تأیید کنید.
+5. در بخش تنظیمات ساخت (**Build Settings**):
+   - **Project Name:** `gemini-shop`
+   - **Production branch:** `main`
+   - **Framework preset:** `Vite`
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+   - **Root directory:** `/` (خالی بگذارید)
+6. در بخش **Environment variables** (متغیرهای ساخت):
+   - متغیر نام: `VITE_API_BASE`
+   - متغیر مقدار: `https://gemini-shop-backend.vercel.app/api` (آدرس بک‌اند ورسل از گام سوم)
+   - متغیر نام: `NODE_VERSION`
+   - متغیر مقدار: `20`
+7. روی دکمه **Save and Deploy** کلیک کنید.
+8. در عرض کمتر از ۱ دقیقه، سایت روی دامنه‌ای شبیه به `https://gemini-shop.pages.dev` آنلاین و فعال خواهد شد.
+
+---
+
+## 🌐 گام پنجم: اتصال دامنه اختصاصی (Custom Domain در Cloudflare)
+
+1. در صفحه پروژه خود در **Cloudflare Pages**، به تب **Custom domains** بروید.
+2. روی دکمه **Set up a custom domain** کلیک کنید.
+3. نام دامنه خود (مانند `geminishop.ir` یا `store.yourdomain.com`) را وارد کنید.
+4. کلادفلر به صورت خودکار رکوردهای DNS را ست کرده و گواهی رایگان و خودکار **SSL (HTTPS)** را برای دامنه فعال می‌نماید.
+
+---
+
+## 🧪 گام ششم: تست نهایی و تحویل کامل به کارفرما
+
+1. **تست لاگین مدیر ارشد:**
+   - با زدن کلید میانبر یا آیکون مدیریت، وارد پنل شوید.
+   - رمز عبور اختصاصی خود را تنظیم کرده و تایید فرمایید.
+   - از تب «همکاران و دسترسی‌ها»، یک ادمین آزمایشی بسازید و با نام کاربری و رمز او ورود را تست کنید.
+2. **تست ارسال ایمیل Gmail OTP:**
+   - در سایت روی خرید اشتراک کلیک کرده، نام و ایمیل جیمیل خود را وارد نمایید.
+   - کد ۵ رقمی بلافاصله به جیمیل شما ایمیل می‌شود. آن را وارد کرده و وارد حساب شوید.
+3. **تست پیگیری سفارش و چت پشتیبانی:**
+   - یک سفارش تستی ثبت کنید، در چت آنلاین استعلام وضعیت را بزنید.
+   - سپس از تب تنظیمات پنل مدیریت، دکمه **«🧹 پاکسازی و بازنشانی دیتابیس صفر»** را بزنید تا سایت کاملاً خام و پاکسازی‌شده تحویل نهایی شود.
