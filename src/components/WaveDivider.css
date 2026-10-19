@@ -18,7 +18,7 @@
 .wave-svg {
   position: relative;
   display: block;
-  width: calc(100% + 1.5px);
+  width: 100%;
   height: clamp(85px, 10vw, 150px);
   filter: drop-shadow(0 6px 20px rgba(79, 70, 229, 0.15));
 }

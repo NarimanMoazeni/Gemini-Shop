@@ -393,7 +393,10 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
-    will-change: transform, opacity;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
   }
   .showcase-card:hover {
     transform: none; /* جلوگیری از پرش در لمس موبایل */
@@ -404,6 +407,7 @@
     transform: none !important;
     background: #ffffff;
     border-color: rgba(99, 102, 241, 0.45);
+    box-shadow: 0 12px 30px -8px rgba(99, 102, 241, 0.2);
   }
   .showcase-card__header {
     width: 100% !important;

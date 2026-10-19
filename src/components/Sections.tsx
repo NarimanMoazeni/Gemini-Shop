@@ -24,13 +24,15 @@ export function Benefits() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // پاسخ آنی به حرکت نشانگر ماوس و ترانزیشن نرم و پیوسته
+  // پاسخ آنی به حرکت نشانگر ماوس و ترانزیشن نرم و پیوسته (فقط روی دسکتاپ با ماوس واقعی)
   const handleCardEnter = (id: string) => {
+    if (window.innerWidth <= 960) return; // در نمای موبایل رویدادهای هاور و تاچ اسکرول نادیده گرفته می‌شوند
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setHoveredId(id);
   };
 
   const handleStripLeave = () => {
+    if (window.innerWidth <= 960) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
       setHoveredId(null);
@@ -57,28 +59,8 @@ export function Benefits() {
   useEffect(() => {
     const isMobile = window.innerWidth <= 960;
     const ctx = gsap.context(() => {
-      if (isMobile) {
-        // انیمیشن روان و سبک ورود هر کارت به صورت مجزا در نمای موبایل
-        gsap.utils.toArray<HTMLElement>('.showcase-card').forEach((card) => {
-          gsap.fromTo(
-            card,
-            { opacity: 0, y: 22 },
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.45,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: card,
-                start: 'top 88%',
-                once: true,
-              },
-              clearProps: 'transform',
-            }
-          );
-        });
-      } else {
-        // انیمیشن استگر ورود ۴ کارت در ردیف برای دسکتاپ
+      if (!isMobile) {
+        // انیمیشن استگر ورود ۴ کارت در ردیف منحصراً برای دسکتاپ (بدون اثر بر موبایل)
         gsap.fromTo(
           '.showcase-card',
           { opacity: 0, y: 35, scale: 0.96 },

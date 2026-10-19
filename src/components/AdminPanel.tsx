@@ -515,7 +515,6 @@ export function AdminPanel({ open, onClose }: Props) {
                 className="en"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                autoFocus
                 required
               />
             </div>

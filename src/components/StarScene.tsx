@@ -15,6 +15,10 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import './StarScene.css';
 
 gsap.registerPlugin(ScrollTrigger);
+ScrollTrigger.config({
+  ignoreMobileResize: true,
+  autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load',
+});
 
 const TAU = Math.PI * 2;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -266,8 +270,9 @@ export function StarScene() {
         trigger: document.body,
         start: 'top top',
         end: () => `+=${Math.round(isMobile ? Math.min(window.innerHeight * 0.65, 420) : window.innerHeight * 0.95)}`,
-        scrub: reduced ? true : (isMobile ? 0.12 : 0.7),
+        scrub: isMobile ? true : (reduced ? true : 0.65), // در موبایل اتصال آنی ۱:۱ بدون ریباند یا لگ نیم ثانیه‌ای به عقب
         invalidateOnRefresh: true,
+        fastScrollEnd: true,
         onRefresh: () => {
           measure();
           render();
@@ -288,7 +293,14 @@ export function StarScene() {
       }
     };
 
+    let lastW = window.innerWidth;
     const onResize = () => {
+      // در مرورگرهای موبایل، پنهان/آشکار شدن نوار آدرس نباید باعث ریفرش و لگ اسکرول شود
+      if (isMobile && window.innerWidth === lastW) return;
+      lastW = window.innerWidth;
+      w = window.innerWidth;
+      h = window.innerHeight;
+      isMobile = w <= 860;
       measure();
       ScrollTrigger.refresh();
     };
