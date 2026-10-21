@@ -8,6 +8,7 @@ import { API_BASE } from '../config/api';
 export interface StoreOrder {
   id: string; // e.g. "GP-742195"
   createdAt: string; // ISO date
+  userId?: string; // شناسه کاربر خریدار
   fullName: string;
   mobile: string;
   gmail: string; // ایمیل شخصی جیمیل که اشتراک روش فعال میشه
@@ -44,7 +45,7 @@ export function saveStoredOrders(orders: StoreOrder[]) {
 }
 
 /**
- * واکشی سفارشات از دیتابیس پایدار سرور (Neon PostgreSQL)
+ * واکشی کل سفارشات برای ادمین از دیتابیس پایدار سرور (Neon PostgreSQL)
  */
 export async function fetchRemoteOrders(adminToken?: string): Promise<StoreOrder[]> {
   try {
@@ -67,6 +68,78 @@ export async function fetchRemoteOrders(adminToken?: string): Promise<StoreOrder
   return getStoredOrders();
 }
 
+/**
+ * دریافت سابقه سفارشات و اشتراک‌های مشتری از سرور بر اساس ایمیل، شماره یا شناسه کاربری
+ * و ادغام خودکار با کش محلی مرورگر (حل قطعی عدم نمایش اشتراک در موبایل)
+ */
+export async function fetchCustomerOrdersRemote(params: {
+  email?: string;
+  mobile?: string;
+  userId?: string;
+}): Promise<StoreOrder[]> {
+  const query = new URLSearchParams();
+  if (params.email) query.set('email', params.email.trim().toLowerCase());
+  if (params.mobile) query.set('mobile', params.mobile.trim());
+  if (params.userId) query.set('userId', params.userId.trim());
+
+  if (!query.toString()) return getStoredOrders();
+
+  try {
+    const res = await fetch(`${API_BASE}/orders?${query.toString()}`);
+    if (res.ok) {
+      const remoteOrders: StoreOrder[] = await res.json();
+      if (Array.isArray(remoteOrders)) {
+        const local = getStoredOrders();
+        const map = new Map<string, StoreOrder>();
+        // ابتدا سفارشات محلی را ثبت می‌کنیم
+        local.forEach((o) => map.set(o.id.toUpperCase(), o));
+        // سفارشات واکشی شده از سرور مرجع اصلی هستند و داده‌های تاییدیه و لینک فعال‌سازی را به روز می‌کنند
+        remoteOrders.forEach((o) => map.set(o.id.toUpperCase(), o));
+
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        saveStoredOrders(merged);
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn('fetchCustomerOrdersRemote error:', err);
+  }
+
+  return getStoredOrders();
+}
+
+/**
+ * پیگیری زنده سفارش با استعلام بلادرنگ از سرور Neon PostgreSQL
+ */
+export async function fetchOrderByIdRemote(orderId: string): Promise<StoreOrder | null> {
+  const cleanId = orderId.trim().toUpperCase();
+  const localFound = getOrderById(cleanId);
+
+  try {
+    const res = await fetch(`${API_BASE}/orders?orderId=${encodeURIComponent(cleanId)}`);
+    if (res.ok) {
+      const remoteOrder: StoreOrder = await res.json();
+      if (remoteOrder && remoteOrder.id) {
+        const local = getStoredOrders();
+        const map = new Map<string, StoreOrder>();
+        local.forEach((o) => map.set(o.id.toUpperCase(), o));
+        map.set(remoteOrder.id.toUpperCase(), remoteOrder);
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        saveStoredOrders(merged);
+        return remoteOrder;
+      }
+    }
+  } catch (err) {
+    console.warn('fetchOrderByIdRemote error:', err);
+  }
+
+  return localFound || null;
+}
+
 export function createStoreOrder(data: {
   fullName: string;
   mobile: string;
@@ -75,6 +148,7 @@ export function createStoreOrder(data: {
   amountToman: number;
   paymentMethod: 'bezanbekart' | 'card_to_card';
   paymentRef: string;
+  userId?: string;
 }): StoreOrder {
   // ساخت کد رهگیری ۶ رقمی رندوم
   const randomNum = Math.floor(100000 + Math.random() * 900000);
@@ -82,19 +156,20 @@ export function createStoreOrder(data: {
 
   const newOrder: StoreOrder = {
     id,
+    userId: data.userId,
     createdAt: new Date().toISOString(),
-    fullName: data.fullName,
-    mobile: data.mobile,
-    gmail: data.gmail,
+    fullName: data.fullName.trim(),
+    mobile: data.mobile.trim(),
+    gmail: data.gmail.trim().toLowerCase(),
     productName: data.productName,
     amountToman: data.amountToman,
     paymentMethod: data.paymentMethod,
-    paymentRef: data.paymentRef,
+    paymentRef: data.paymentRef.trim(),
     status: 'pending_verification',
   };
 
   const existing = getStoredOrders();
-  saveStoredOrders([newOrder, ...existing]);
+  saveStoredOrders([newOrder, ...existing.filter((o) => o.id !== newOrder.id)]);
 
   // ثبت آنی در سرور و دیتابیس Neon
   try {

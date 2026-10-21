@@ -32,10 +32,15 @@ import {
   getUserByGmail,
   getUserByUsername,
   insertUser,
+  updateUserProfile,
   getAllOrders,
+  getOrdersByCustomer,
+  getOrderById,
   insertOrder,
   updateOrder,
   deleteOrder,
+  insertChatMessage,
+  getChatMessages,
   getSettingsMap,
   saveSetting,
   zeroStateReset as dbZeroStateReset,
@@ -926,30 +931,78 @@ export async function handleApiRequest(req, res) {
       });
     }
 
-    // ۴. دریافت لیست سفارشات (عمومی برای پیگیری یا لیست کامل برای ادمین)
+    // ۳.۵. بروزرسانی پروفایل مشتری و همگام‌سازی در دیتابیس Neon
+    if (pathname === '/api/auth/profile' && req.method === 'PATCH') {
+      const body = await parseRequestBody(req);
+      const userId = body.id || body.userId;
+      const cleanName = sanitizeText(body.fullName || '', 100);
+      const cleanEmail = normalizeEmail(body.gmail || body.email);
+      const cleanMobile = normalizeMobile(body.mobile || '');
+
+      if (!userId && !cleanEmail && !cleanMobile) {
+        return sendJson(res, 400, { error: 'User identifier is required' });
+      }
+
+      let updatedUser = null;
+      if (userId) {
+        try {
+          updatedUser = await updateUserProfile(userId, { fullName: cleanName, gmail: cleanEmail, mobile: cleanMobile });
+        } catch (e) {
+          console.warn('Neon updateUserProfile notice:', e.message);
+        }
+      }
+
+      const idx = db.users.findIndex((u) => u.id === userId || (cleanEmail && normalizeEmail(u.gmail) === cleanEmail));
+      if (idx !== -1) {
+        if (cleanName) db.users[idx].fullName = cleanName;
+        if (cleanEmail) db.users[idx].gmail = cleanEmail;
+        if (cleanMobile) db.users[idx].mobile = cleanMobile;
+        saveDatabase(db);
+        if (!updatedUser) updatedUser = db.users[idx];
+      }
+
+      return sendJson(res, 200, { success: true, user: updatedUser });
+    }
+
+    // ۴. دریافت لیست سفارشات (عمومی برای پیگیری، مشاهده سفارشات مشتری جاری در موبایل/کامپیوتر، یا لیست کامل برای ادمین)
     if (pathname === '/api/orders' && req.method === 'GET') {
       const mobile = url.searchParams.get('mobile');
       const email = url.searchParams.get('email');
       const orderId = url.searchParams.get('orderId');
+      const userId = url.searchParams.get('userId');
 
+      // ۴.۱. پیگیری یک سفارش مشخص با شناسه (مثلاً GP-123456)
       if (orderId) {
-        const found = db.orders.find((o) => o.id.toUpperCase() === orderId.toUpperCase());
+        let found = await getOrderById(orderId);
+        if (!found) {
+          found = db.orders.find((o) => o.id.toUpperCase() === orderId.toUpperCase());
+        }
         return sendJson(res, found ? 200 : 404, found || { error: 'Order not found' });
       }
 
-      if (email) {
-        const cleanEmail = normalizeEmail(email);
-        const userOrders = db.orders.filter((o) => normalizeEmail(o.gmail) === cleanEmail);
+      // ۴.۲. دریافت سوابق و اشتراک‌های مشتری جاری (حل ریشه‌ای عدم نمایش اشتراک‌ها در موبایل)
+      if (email || mobile || userId) {
+        const cleanEmail = email ? normalizeEmail(email) : '';
+        const cleanMobile = mobile ? normalizeMobile(mobile) : '';
+        const cleanUserId = userId ? String(userId).trim() : '';
+
+        // جستجوی مستقیم در پایگاه داده پایدار Neon PostgreSQL
+        const dbMatches = await getOrdersByCustomer({ email: cleanEmail, mobile: cleanMobile, userId: cleanUserId });
+        if (Array.isArray(dbMatches) && dbMatches.length > 0) {
+          return sendJson(res, 200, dbMatches);
+        }
+
+        // جستجوی تکمیلی در حافظه لوکال سرور
+        const userOrders = db.orders.filter((o) => {
+          const matchEmail = cleanEmail && normalizeEmail(o.gmail) === cleanEmail;
+          const matchMobile = cleanMobile && normalizeMobile(o.mobile) === cleanMobile;
+          const matchUser = cleanUserId && o.userId === cleanUserId;
+          return matchEmail || matchMobile || matchUser;
+        });
         return sendJson(res, 200, userOrders);
       }
 
-      if (mobile) {
-        const cleanMobile = normalizeMobile(mobile);
-        const userOrders = db.orders.filter((o) => normalizeMobile(o.mobile) === cleanMobile);
-        return sendJson(res, 200, userOrders);
-      }
-
-      // مشاهده کل سفارشات نیازمند دسترسی ادمین (چه head_admin چه regular_admin)
+      // ۴.۳. مشاهده کل سفارشات نیازمند دسترسی ادمین (چه head_admin چه regular_admin)
       if (!isAuthorizedAdmin(req)) {
         return sendJson(res, 401, { error: 'Unauthorized: Admin authentication required for full order list' });
       }
@@ -988,9 +1041,15 @@ export async function handleApiRequest(req, res) {
         db.users.push(customer);
       }
 
+      // حفظ کد رهگیری دقیق کلاینت یا ساخت کد استاندارد
+      const orderId = body.id && typeof body.id === 'string' && /^GP-\d{6}$/i.test(body.id.trim())
+        ? body.id.trim().toUpperCase()
+        : `GP-${Math.floor(100000 + Math.random() * 900000)}`;
+
       const newOrder = {
-        id: `GP-${Math.floor(100000 + Math.random() * 900000)}`,
-        createdAt: new Date().toISOString(),
+        id: orderId,
+        userId: body.userId ? String(body.userId).trim() : (customer ? customer.id : null),
+        createdAt: body.createdAt || new Date().toISOString(),
         fullName: cleanOrderName,
         mobile: cleanOrderMobile,
         gmail: cleanOrderEmail,
@@ -1001,13 +1060,14 @@ export async function handleApiRequest(req, res) {
         status: 'pending_verification',
       };
 
-      db.orders.unshift(newOrder);
-      saveDatabase(db);
       try {
         await insertOrder(newOrder);
       } catch (e) {
         console.warn('Neon insertOrder fallback notice:', e.message);
       }
+
+      db.orders = [newOrder, ...db.orders.filter((o) => o.id !== newOrder.id)];
+      saveDatabase(db);
       return sendJson(res, 201, newOrder);
     }
 
@@ -1076,6 +1136,12 @@ export async function handleApiRequest(req, res) {
     if (pathname === '/api/chat/messages' && req.method === 'GET') {
       const sessionId = url.searchParams.get('sessionId');
       if (sessionId) {
+        try {
+          const dbMsgs = await getChatMessages(sessionId);
+          if (Array.isArray(dbMsgs) && dbMsgs.length > 0) {
+            return sendJson(res, 200, dbMsgs);
+          }
+        } catch {}
         const sessionMsgs = db.chatMessages.filter((m) => m.sessionId === sessionId);
         return sendJson(res, 200, sessionMsgs);
       }
@@ -1083,6 +1149,13 @@ export async function handleApiRequest(req, res) {
       if (!isAuthorizedAdmin(req)) {
         return sendJson(res, 401, { error: 'Unauthorized' });
       }
+
+      try {
+        const allDbMsgs = await getChatMessages();
+        if (Array.isArray(allDbMsgs) && allDbMsgs.length > 0) {
+          return sendJson(res, 200, allDbMsgs);
+        }
+      } catch {}
 
       return sendJson(res, 200, db.chatMessages);
     }
@@ -1103,6 +1176,12 @@ export async function handleApiRequest(req, res) {
         createdAt: new Date().toISOString(),
         isRead: Boolean(body.isRead),
       };
+
+      try {
+        await insertChatMessage(newMsg);
+      } catch (err) {
+        console.warn('Neon insertChatMessage notice:', err.message);
+      }
 
       db.chatMessages.push(newMsg);
       saveDatabase(db);

@@ -5,6 +5,7 @@
 
 import { PAYMENT_CONFIG, SUPPORT } from '../config/site';
 import { getOrderById } from './orderStorage';
+import { API_BASE } from '../config/api';
 
 export interface ChatMessage {
   id: string;
@@ -26,8 +27,20 @@ export interface ChatMessage {
 const CHAT_STORAGE_KEY = 'gemini_pro_chat_sessions_v1';
 const SESSION_ID_KEY = 'gemini_pro_user_session_id';
 
-/** دریافت یا ایجاد شناسه یکتای سشن برای کاربر جاری */
+/** دریافت یا ایجاد شناسه یکتای سشن برای کاربر جاری (تضمین یکپارچگی بین دستگاه‌ها در صورت لاگین) */
 export function getOrCreateSessionId(): string {
+  try {
+    const rawUser = localStorage.getItem('gemini_customer_profile_v1');
+    if (rawUser) {
+      const u = JSON.parse(rawUser);
+      if (u && (u.id || u.username)) {
+        const canonical = `cust_${(u.id || u.username).replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+        localStorage.setItem(SESSION_ID_KEY, canonical);
+        return canonical;
+      }
+    }
+  } catch {}
+
   let sessionId = localStorage.getItem(SESSION_ID_KEY);
   if (!sessionId) {
     sessionId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -71,6 +84,28 @@ function saveAllChatMessages(messages: ChatMessage[]) {
   }
 }
 
+/** همگام‌سازی پیام‌های چت با دیتابیس پایدار Neon */
+export async function syncSessionChat(sessionId: string): Promise<ChatMessage[]> {
+  try {
+    const res = await fetch(`${API_BASE}/chat/messages?sessionId=${encodeURIComponent(sessionId)}`);
+    if (res.ok) {
+      const remoteMsgs: ChatMessage[] = await res.json();
+      if (Array.isArray(remoteMsgs)) {
+        const local = getAllChatMessages();
+        const map = new Map<string, ChatMessage>();
+        local.forEach((m) => map.set(m.id, m));
+        remoteMsgs.forEach((m) => map.set(m.id, m));
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        saveAllChatMessages(merged);
+        return merged.filter((m) => m.sessionId === sessionId);
+      }
+    }
+  } catch {}
+  return getSessionMessages(sessionId);
+}
+
 /** ارسال پیام توسط کاربر و تولید پاسخ هوشمند */
 export function sendUserMessage(sessionId: string, text: string): { userMsg: ChatMessage; botReply?: ChatMessage } {
   const userMsg: ChatMessage = {
@@ -85,10 +120,26 @@ export function sendUserMessage(sessionId: string, text: string): { userMsg: Cha
   const all = getAllChatMessages();
   all.push(userMsg);
 
+  // ثبت در سرور و Neon DB
+  try {
+    fetch(`${API_BASE}/chat/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userMsg),
+    }).catch(() => {});
+  } catch {}
+
   // بررسی پاسخ خودکار هوشمند
   const botReply = generateSmartReply(sessionId, text.trim());
   if (botReply) {
     all.push(botReply);
+    try {
+      fetch(`${API_BASE}/chat/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(botReply),
+      }).catch(() => {});
+    } catch {}
   }
 
   saveAllChatMessages(all);
@@ -109,6 +160,15 @@ export function sendAdminReply(sessionId: string, text: string): ChatMessage {
   const all = getAllChatMessages();
   all.push(adminMsg);
   saveAllChatMessages(all);
+
+  try {
+    fetch(`${API_BASE}/chat/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(adminMsg),
+    }).catch(() => {});
+  } catch {}
+
   return adminMsg;
 }
 

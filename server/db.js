@@ -243,23 +243,138 @@ export async function getAllOrders() {
 }
 
 export async function insertOrder(order) {
+  const cleanEmail = String(order.gmail || '').trim().toLowerCase();
+  const cleanMobile = String(order.mobile || '').replace(/\D/g, '');
+  const cleanId = String(order.id || '').toUpperCase();
   const res = await queryNeon(
-    `INSERT INTO orders (id, full_name, gmail, mobile, product_name, amount_toman, payment_method, payment_ref, status, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-     RETURNING *;`,
+    `INSERT INTO orders (id, user_id, full_name, gmail, mobile, product_name, amount_toman, payment_method, payment_ref, status, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       user_id = COALESCE(EXCLUDED.user_id, orders.user_id),
+       payment_ref = COALESCE(EXCLUDED.payment_ref, orders.payment_ref),
+       status = orders.status
+     RETURNING id, user_id as "userId", full_name as "fullName", gmail, mobile, product_name as "productName",
+               amount_toman as "amountToman", payment_method as "paymentMethod", payment_ref as "paymentRef",
+               status, activation_link as "activationLink", admin_notes as "adminNotes",
+               created_at as "createdAt", approved_at as "approvedAt";`,
     [
-      order.id,
-      order.fullName,
-      order.gmail.trim().toLowerCase(),
-      order.mobile || '',
+      cleanId,
+      order.userId || null,
+      order.fullName || 'کاربر گرامی',
+      cleanEmail,
+      cleanMobile,
       order.productName || 'Google AI Pro 18 Months',
-      order.amountToman || 599000,
+      Number(order.amountToman) || 599000,
       order.paymentMethod || 'bezanbekart',
       order.paymentRef || '',
       order.status || 'pending_verification',
     ]
   );
   return res.rows[0];
+}
+
+export async function getOrdersByCustomer({ email, mobile, userId }) {
+  try {
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, '') : null;
+    const cleanUserId = userId ? String(userId).trim() : null;
+
+    const res = await queryNeon(
+      `SELECT id, user_id as "userId", full_name as "fullName", gmail, mobile, product_name as "productName",
+              amount_toman as "amountToman", payment_method as "paymentMethod", payment_ref as "paymentRef",
+              status, activation_link as "activationLink", admin_notes as "adminNotes",
+              created_at as "createdAt", approved_at as "approvedAt"
+       FROM orders
+       WHERE ($1::text IS NOT NULL AND LOWER(gmail) = $1)
+          OR ($2::text IS NOT NULL AND mobile = $2)
+          OR ($3::text IS NOT NULL AND user_id = $3)
+       ORDER BY created_at DESC;`,
+      [cleanEmail, cleanMobile, cleanUserId]
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('Neon getOrdersByCustomer error:', err.message);
+    return [];
+  }
+}
+
+export async function getOrderById(orderId) {
+  try {
+    const cleanId = String(orderId).trim().toUpperCase();
+    const res = await queryNeon(
+      `SELECT id, user_id as "userId", full_name as "fullName", gmail, mobile, product_name as "productName",
+              amount_toman as "amountToman", payment_method as "paymentMethod", payment_ref as "paymentRef",
+              status, activation_link as "activationLink", admin_notes as "adminNotes",
+              created_at as "createdAt", approved_at as "approvedAt"
+       FROM orders
+       WHERE UPPER(id) = $1
+       LIMIT 1;`,
+      [cleanId]
+    );
+    return res.rows[0] || null;
+  } catch (err) {
+    console.error('Neon getOrderById error:', err.message);
+    return null;
+  }
+}
+
+export async function updateUserProfile(id, { fullName, gmail, mobile }) {
+  try {
+    const cleanEmail = gmail ? String(gmail).trim().toLowerCase() : null;
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, '') : null;
+    const res = await queryNeon(
+      `UPDATE users
+       SET full_name = COALESCE($1, full_name),
+           gmail = COALESCE($2, gmail),
+           mobile = COALESCE($3, mobile)
+       WHERE id = $4
+       RETURNING id, full_name as "fullName", username, gmail, mobile, created_at as "createdAt";`,
+      [fullName || null, cleanEmail, cleanMobile, id]
+    );
+    return res.rows[0] || null;
+  } catch (err) {
+    console.error('Neon updateUserProfile error:', err.message);
+    return null;
+  }
+}
+
+export async function insertChatMessage({ id, sessionId, sender, text, isRead }) {
+  try {
+    const res = await queryNeon(
+      `INSERT INTO chat_messages (id, session_id, sender, text, is_read, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       RETURNING id, session_id as "sessionId", sender, text, is_read as "isRead", created_at as "createdAt";`,
+      [id, sessionId, sender, text, Boolean(isRead)]
+    );
+    return res.rows[0];
+  } catch (err) {
+    console.error('Neon insertChatMessage error:', err.message);
+    return null;
+  }
+}
+
+export async function getChatMessages(sessionId) {
+  try {
+    if (sessionId) {
+      const res = await queryNeon(
+        `SELECT id, session_id as "sessionId", sender, text, is_read as "isRead", created_at as "createdAt"
+         FROM chat_messages
+         WHERE session_id = $1
+         ORDER BY created_at ASC;`,
+        [sessionId]
+      );
+      return res.rows;
+    }
+    const res = await queryNeon(
+      `SELECT id, session_id as "sessionId", sender, text, is_read as "isRead", created_at as "createdAt"
+       FROM chat_messages
+       ORDER BY created_at ASC;`
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('Neon getChatMessages error:', err.message);
+    return [];
+  }
 }
 
 export async function updateOrder(id, { status, activationLink, adminNotes }) {

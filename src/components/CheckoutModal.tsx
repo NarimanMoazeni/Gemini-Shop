@@ -189,19 +189,20 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
       return;
     }
 
+    const currentUser = getCurrentUser();
     const cleanMobile = normalizeDigits(mobile.trim());
     const cleanName = fullName.trim();
     const cleanGmail = gmail.trim().toLowerCase();
 
     // همگام‌سازی و ذخیره آنی در پروفایل مشتری
-    loginOrRegisterCustomer({
+    const customer = loginOrRegisterCustomer({
       fullName: cleanName,
       mobile: cleanMobile,
       gmail: cleanGmail,
     });
 
     setLoading(true);
-    // ساخت سفارش در دیتابیس لوکال با وضعیت در انتظار بررسی واریز
+    // ساخت سفارش در دیتابیس لوکال با وضعیت در انتظار بررسی واریز و اتصال به کاربر
     setTimeout(() => {
       const order = createStoreOrder({
         fullName: cleanName,
@@ -211,6 +212,7 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
         amountToman: product.priceToman,
         paymentMethod,
         paymentRef: paymentRef.trim(),
+        userId: customer?.id || currentUser?.id,
       });
       setCreatedOrder(order);
       setLoading(false);

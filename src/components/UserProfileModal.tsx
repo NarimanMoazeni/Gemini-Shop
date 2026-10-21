@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { formatToman } from '../lib/format';
-import { getCustomerOrders, logoutCustomer, saveCurrentUser, type UserProfile } from '../services/authService';
+import { getCustomerOrders, syncCustomerOrders, logoutCustomer, saveCurrentUser, type UserProfile } from '../services/authService';
 import { getSessionMessages, getOrCreateSessionId } from '../services/chatService';
 import type { StoreOrder } from '../services/orderStorage';
+import { API_BASE } from '../config/api';
 import { Icon, GeminiStar, GoogleG } from './Icon';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import './UserProfileModal.css';
@@ -39,10 +40,22 @@ export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Pro
     setEditName(user.fullName);
     setEditGmail(user.gmail || '');
 
-    const fetchOrders = () => {
-      setOrders(getCustomerOrders(user.gmail || user.mobile));
-    };
-    fetchOrders();
+    // ۱. رندر آنی و بدون تاخیر از داده‌های کش محلی
+    const local = getCustomerOrders(user.gmail || user.mobile);
+    setOrders(local);
+
+    // ۲. استعلام بلادرنگ از دیتابیس پایدار سرور (Neon) برای همگام‌سازی سفارشات بین کامپیوتر و موبایل
+    syncCustomerOrders(user).then((freshOrders) => {
+      if (Array.isArray(freshOrders)) {
+        const userOrders = freshOrders.filter(
+          (o) =>
+            (user.gmail && o.gmail && o.gmail.toLowerCase() === user.gmail.toLowerCase()) ||
+            (user.mobile && o.mobile && o.mobile === user.mobile) ||
+            (user.id && o.userId === user.id)
+        );
+        setOrders(userOrders);
+      }
+    });
 
     const checkChat = () => {
       const msgs = getSessionMessages(getOrCreateSessionId());
@@ -52,7 +65,8 @@ export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Pro
     checkChat();
 
     const handleUpdate = () => {
-      fetchOrders();
+      const updated = getCustomerOrders(user.gmail || user.mobile);
+      setOrders(updated);
       checkChat();
     };
     window.addEventListener('gemini_orders_updated', handleUpdate);
@@ -61,7 +75,7 @@ export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Pro
       window.removeEventListener('gemini_orders_updated', handleUpdate);
       window.removeEventListener('gemini_chat_updated', handleUpdate);
     };
-  }, [open, user.gmail, user.mobile, user.fullName]);
+  }, [open, user.gmail, user.mobile, user.fullName, user.id]);
 
   if (!open) return null;
 
@@ -77,7 +91,7 @@ export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Pro
     setTimeout(() => setCopiedOrderId(null), 1800);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     const updated: UserProfile = {
       ...user,
@@ -87,6 +101,20 @@ export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Pro
     saveCurrentUser(updated);
     setSavedNote(true);
     setTimeout(() => setSavedNote(false), 2500);
+
+    // همگام‌سازی بلادرنگ با دیتابیس سرور
+    try {
+      fetch(`${API_BASE}/auth/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: user.id,
+          fullName: updated.fullName,
+          gmail: updated.gmail,
+          mobile: updated.mobile,
+        }),
+      }).catch(() => {});
+    } catch {}
   };
 
   const handleLogout = () => {

@@ -4,7 +4,7 @@
  */
 
 import { sanitizeInput, sanitizeMobile, sanitizeEmail } from '../lib/sanitize';
-import { getStoredOrders, type StoreOrder } from './orderStorage';
+import { getStoredOrders, fetchCustomerOrdersRemote, type StoreOrder } from './orderStorage';
 import { API_BASE } from '../config/api';
 
 export interface UserProfile {
@@ -131,6 +131,8 @@ export async function loginWithPassword(
     if (res.ok && data.success && data.user) {
       const user: UserProfile = data.user;
       saveCurrentUser(user);
+      // همگام‌سازی بلادرنگ کلیه سفارشات و اشتراک‌های کاربر از دیتابیس پایدار سرور به این دستگاه
+      fetchCustomerOrdersRemote({ email: user.gmail, mobile: user.mobile, userId: user.id }).catch(() => {});
       return {
         success: true,
         user,
@@ -296,6 +298,8 @@ export async function verifyEmailOtp(
     if (res.ok && data.success) {
       const user: UserProfile = data.user;
       saveCurrentUser(user);
+      // همگام‌سازی بلادرنگ سفارشات و اشتراک‌ها پس از ثبت‌نام یا ورود با کد تأیید
+      fetchCustomerOrdersRemote({ email: user.gmail, mobile: user.mobile, userId: user.id }).catch(() => {});
       // ثبت ایمیل در کش محلی
       try {
         const registered = JSON.parse(localStorage.getItem('gemini_all_registered_emails') || '[]');
@@ -403,6 +407,17 @@ export function getCustomerOrders(identifier: string): StoreOrder[] {
       (cleanEmail && sanitizeEmail(o.gmail) === cleanEmail) ||
       (cleanMobile && sanitizeMobile(o.mobile) === cleanMobile)
   );
+}
+
+/**
+ * همگام‌سازی بلادرنگ سفارشات مشتری جاری با دیتابیس پایدار Neon
+ */
+export async function syncCustomerOrders(user: UserProfile): Promise<StoreOrder[]> {
+  return fetchCustomerOrdersRemote({
+    email: user.gmail,
+    mobile: user.mobile,
+    userId: user.id,
+  });
 }
 
 // توابع سازگاری گذشته (Backwards Compatibility)

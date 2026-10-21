@@ -5,6 +5,7 @@ import {
   findOrders,
   getOrderById,
   getStoredOrders,
+  fetchOrderByIdRemote,
   type StoreOrder,
 } from '../services/orderStorage';
 import { Icon } from './Icon';
@@ -49,22 +50,34 @@ export function OrderTrackingModal({ open, onClose, initialOrderId, onOpenChat }
 
   if (!open) return null;
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setSearchError(null);
-    if (!query.trim()) return;
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return;
 
-    const direct = getOrderById(query.trim());
+    // ۱. بررسی فوری در حافظه محلی
+    const direct = getOrderById(cleanQuery);
     if (direct) {
       setSelectedOrder(direct);
       return;
     }
-    const results = findOrders(query.trim());
+    const results = findOrders(cleanQuery);
     if (results.length > 0) {
       setSelectedOrder(results[0]);
-    } else {
-      setSearchError('سفارشی با این شماره سفارش یا مشخصات در این مرورگر یافت نشد. لطفاً کد پیگیری را با دقت وارد نمایید.');
+      return;
     }
+
+    // ۲. استعلام بلادرنگ از سرور پایدار Neon PostgreSQL (برای پیگیری در موبایل یا دستگاه‌های دیگر)
+    try {
+      const remote = await fetchOrderByIdRemote(cleanQuery);
+      if (remote) {
+        setSelectedOrder(remote);
+        return;
+      }
+    } catch {}
+
+    setSearchError('سفارشی با این شماره سفارش یا مشخصات یافت نشد. لطفاً کد پیگیری را با دقت وارد نمایید.');
   };
 
   const copyToClipboard = (text: string, type: 'link' | 'id') => {
