@@ -36,7 +36,7 @@ export async function queryNeon(query, params = []) {
   const uri = getDbUri();
   const host = getDbHost(uri);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch(`https://${host}/sql`, {
@@ -378,21 +378,26 @@ export async function getChatMessages(sessionId) {
 }
 
 export async function updateOrder(id, { status, activationLink, adminNotes }) {
+  const cleanId = String(id || '').trim().toUpperCase();
   const res = await queryNeon(
     `UPDATE orders
      SET status = COALESCE($1, status),
          activation_link = COALESCE($2, activation_link),
          admin_notes = COALESCE($3, admin_notes),
          approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END
-     WHERE id = $4
-     RETURNING *;`,
-    [status || null, activationLink || null, adminNotes || null, id]
+     WHERE UPPER(id) = $4
+     RETURNING id, user_id as "userId", full_name as "fullName", gmail, mobile, product_name as "productName",
+               amount_toman as "amountToman", payment_method as "paymentMethod", payment_ref as "paymentRef",
+               status, activation_link as "activationLink", admin_notes as "adminNotes",
+               created_at as "createdAt", approved_at as "approvedAt";`,
+    [status || null, activationLink || null, adminNotes || null, cleanId]
   );
   return res.rows[0] || null;
 }
 
 export async function deleteOrder(id) {
-  const res = await queryNeon('DELETE FROM orders WHERE id = $1;', [id]);
+  const cleanId = String(id || '').trim().toUpperCase();
+  const res = await queryNeon('DELETE FROM orders WHERE UPPER(id) = $1;', [cleanId]);
   return res.rowCount > 0;
 }
 

@@ -1079,9 +1079,23 @@ export async function handleApiRequest(req, res) {
 
       const orderId = pathname.split('/').pop().toUpperCase();
       const body = await parseRequestBody(req);
-      const idx = db.orders.findIndex((o) => o.id.toUpperCase() === orderId);
+      let idx = db.orders.findIndex((o) => o.id.toUpperCase() === orderId);
+      let existingOrder = idx !== -1 ? db.orders[idx] : null;
 
-      if (idx === -1) {
+      if (!existingOrder) {
+        try {
+          const dbOrder = await getOrderById(orderId);
+          if (dbOrder) {
+            existingOrder = dbOrder;
+            db.orders.push(dbOrder);
+            idx = db.orders.length - 1;
+          }
+        } catch (e) {
+          console.warn('Neon getOrderById fallback notice:', e.message);
+        }
+      }
+
+      if (!existingOrder) {
         return sendJson(res, 404, { error: 'Order not found' });
       }
 
@@ -1099,14 +1113,25 @@ export async function handleApiRequest(req, res) {
         allowedUpdates.approvedAt = new Date().toISOString();
       }
 
-      db.orders[idx] = { ...db.orders[idx], ...allowedUpdates };
+      const updatedLocal = { ...existingOrder, ...allowedUpdates };
+      const curIdx = db.orders.findIndex((o) => o.id.toUpperCase() === orderId);
+      if (curIdx !== -1) {
+        db.orders[curIdx] = updatedLocal;
+      } else {
+        db.orders.push(updatedLocal);
+      }
       saveDatabase(db);
+
+      let finalResult = updatedLocal;
       try {
-        await updateOrder(orderId, allowedUpdates);
+        const neonUpdated = await updateOrder(orderId, allowedUpdates);
+        if (neonUpdated) {
+          finalResult = neonUpdated;
+        }
       } catch (e) {
         console.warn('Neon updateOrder fallback notice:', e.message);
       }
-      return sendJson(res, 200, db.orders[idx]);
+      return sendJson(res, 200, finalResult);
     }
 
     // ۷. حذف سفارش
@@ -1117,19 +1142,25 @@ export async function handleApiRequest(req, res) {
 
       const orderId = pathname.split('/').pop().toUpperCase();
       const idx = db.orders.findIndex((o) => o.id.toUpperCase() === orderId);
+      let deleted = null;
 
-      if (idx === -1) {
-        return sendJson(res, 404, { error: 'Order not found' });
+      if (idx !== -1) {
+        deleted = db.orders.splice(idx, 1)[0];
+        saveDatabase(db);
       }
 
-      const deleted = db.orders.splice(idx, 1)[0];
-      saveDatabase(db);
+      let deletedFromNeon = false;
       try {
-        await deleteOrder(orderId);
+        deletedFromNeon = await deleteOrder(orderId);
       } catch (e) {
         console.warn('Neon deleteOrder fallback notice:', e.message);
       }
-      return sendJson(res, 200, { success: true, deletedOrder: deleted });
+
+      if (!deleted && !deletedFromNeon) {
+        return sendJson(res, 404, { error: 'Order not found' });
+      }
+
+      return sendJson(res, 200, { success: true, deletedOrder: deleted || { id: orderId } });
     }
 
     // ۸. دریافت پیام‌های پشتیبانی آنلاین (فیلتر بر اساس sessionId یا کل پیام‌ها برای ادمین)
