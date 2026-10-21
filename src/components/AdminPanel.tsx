@@ -9,6 +9,7 @@ import {
 } from '../services/chatService';
 import {
   getStoredOrders,
+  fetchRemoteOrders,
   approveOrderRemote,
   rejectOrderRemote,
   deleteOrderRemote,
@@ -16,7 +17,7 @@ import {
 } from '../services/orderStorage';
 import { Icon } from './Icon';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { hashPassword, verifyPassword } from '../lib/crypto';
+import { hashPassword } from '../lib/crypto';
 import { API_BASE } from '../config/api';
 import './AdminPanel.css';
 
@@ -108,13 +109,19 @@ export function AdminPanel({ open, onClose }: Props) {
   const [showAdminDropdown, setShowAdminDropdown] = useState(false);
   const [showAdminNotifications, setShowAdminNotifications] = useState(false);
 
-  // بررسی نشست لاگین قبلی از sessionStorage
+  // بررسی نشست لاگین قبلی از localStorage / sessionStorage برای حفظ اتصال پایدار در موبایل و دسکتاپ
   useEffect(() => {
-    const savedAuth = sessionStorage.getItem('gemini_admin_auth') === 'true';
-    const savedToken = sessionStorage.getItem('gemini_admin_token') || '';
-    const savedUserRaw = sessionStorage.getItem('gemini_admin_user');
+    const savedAuth =
+      sessionStorage.getItem('gemini_admin_auth') === 'true' ||
+      localStorage.getItem('gemini_admin_auth') === 'true';
+    const savedToken =
+      sessionStorage.getItem('gemini_admin_token') ||
+      localStorage.getItem('gemini_admin_token') || '';
+    const savedUserRaw =
+      sessionStorage.getItem('gemini_admin_user') ||
+      localStorage.getItem('gemini_admin_user');
 
-    if (savedAuth) {
+    if (savedAuth && savedToken) {
       setIsAuthenticated(true);
       setAdminToken(savedToken);
       if (savedUserRaw) {
@@ -225,16 +232,44 @@ export function AdminPanel({ open, onClose }: Props) {
     }
   };
 
-  // بارگذاری داده‌های سفارشات و چت
+  // بارگذاری داده‌های سفارشات و چت با همگام‌سازی بلادرنگ سرور مرکزی Neon
   useEffect(() => {
     if (!open) return;
 
-    const loadData = () => {
-      setOrders(getStoredOrders());
+    const token =
+      adminToken ||
+      sessionStorage.getItem('gemini_admin_token') ||
+      localStorage.getItem('gemini_admin_token') ||
+      '';
+
+    const syncLiveOrders = async () => {
+      if (token) {
+        try {
+          const liveOrders = await fetchRemoteOrders(token);
+          if (Array.isArray(liveOrders)) {
+            setOrders(liveOrders);
+          }
+        } catch {}
+      } else {
+        setOrders(getStoredOrders());
+      }
       setChatMessages(getAllChatMessages());
     };
 
-    loadData();
+    setOrders(getStoredOrders());
+    setChatMessages(getAllChatMessages());
+    syncLiveOrders();
+
+    // پولینگ هوشمند هر ۵ ثانیه برای دریافت سفارشات ثبت‌شده در موبایل یا کامپیوتر
+    const interval = setInterval(() => {
+      if (token) {
+        fetchRemoteOrders(token)
+          .then((live) => {
+            if (Array.isArray(live)) setOrders(live);
+          })
+          .catch(() => {});
+      }
+    }, 5000);
 
     const handleOrders = () => setOrders(getStoredOrders());
     const handleChat = () => setChatMessages(getAllChatMessages());
@@ -243,10 +278,11 @@ export function AdminPanel({ open, onClose }: Props) {
     window.addEventListener('gemini_chat_updated', handleChat);
 
     return () => {
+      clearInterval(interval);
       window.removeEventListener('gemini_orders_updated', handleOrders);
       window.removeEventListener('gemini_chat_updated', handleChat);
     };
-  }, [open]);
+  }, [open, isAuthenticated, adminToken]);
 
   if (!open) return null;
 
@@ -315,7 +351,7 @@ export function AdminPanel({ open, onClose }: Props) {
     }
   };
 
-  // ورود به پنل ادمین (پشتیبانی از سرور، مدیر ارشد سفارشی و ادمین‌های زیرمجموعه)
+  // ورود به پنل ادمین (پایگاه‌داده متمرکز و یکپارچه سرور Neon)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -323,7 +359,6 @@ export function AdminPanel({ open, onClose }: Props) {
 
     const cleanUsername = username.trim().toLowerCase();
 
-    // تلاش اول: بررسی از طریق سرور API
     try {
       const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
@@ -343,71 +378,37 @@ export function AdminPanel({ open, onClose }: Props) {
         sessionStorage.setItem('gemini_admin_auth', 'true');
         sessionStorage.setItem('gemini_admin_token', data.token);
         sessionStorage.setItem('gemini_admin_user', JSON.stringify(data.admin));
+        localStorage.setItem('gemini_admin_auth', 'true');
+        localStorage.setItem('gemini_admin_token', data.token);
+        localStorage.setItem('gemini_admin_user', JSON.stringify(data.admin));
+
+        // دریافت آنی اطلاعات همکاران و کلیه سفارشات از دیتابیس مشترک
+        await fetchRemoteOrders(data.token);
+        await loadAdminsList(data.token);
+        return;
+      } else {
+        setLoginLoading(false);
+        setLoginError(data.error || 'نام کاربری یا رمز عبور اشتباه است.');
         return;
       }
-    } catch {}
+    } catch (err: any) {
+      console.warn('Backend login network notice:', err);
+    }
 
     setLoginLoading(false);
-
-    // ۱. بررسی مدیر ارشد (head_admin)
-    if (cleanUsername === 'admin') {
-      const headHash = localStorage.getItem('gemini_head_admin_hash');
-      if (!headHash) {
-        setIsSetupMode(true);
-        setLoginError('هنوز رمز عبور مدیر ارشد تعیین نشده است. لطفاً ابتدا رمز خود را تنظیم فرمایید.');
-        return;
-      }
-
-      const isMatch = await verifyPassword(password, headHash);
-      if (isMatch) {
-        const headAdmin: AdminUser = {
-          id: 'adm_head_1',
-          username: 'admin',
-          fullName: 'نریمان موذنی (مدیر ارشد)',
-          role: 'head_admin',
-        };
-        setIsAuthenticated(true);
-        setCurrentAdmin(headAdmin);
-        sessionStorage.setItem('gemini_admin_auth', 'true');
-        sessionStorage.setItem('gemini_admin_user', JSON.stringify(headAdmin));
-        return;
-      }
-    }
-
-    // ۲. بررسی ادمین‌های زیرمجموعه در دیتابیس
-    const localAdminsRaw = localStorage.getItem('gemini_local_admins');
-    if (localAdminsRaw) {
-      try {
-        const allAdmins = JSON.parse(localAdminsRaw);
-        const matched = allAdmins.find((a: any) => a.username.toLowerCase() === cleanUsername);
-        if (matched && matched.passwordHash) {
-          const isMatch = await verifyPassword(password, matched.passwordHash);
-          if (isMatch) {
-            const adminUser: AdminUser = {
-              id: matched.id,
-              username: matched.username,
-              fullName: matched.fullName,
-              role: matched.role || 'regular_admin',
-            };
-            setIsAuthenticated(true);
-            setCurrentAdmin(adminUser);
-            sessionStorage.setItem('gemini_admin_auth', 'true');
-            sessionStorage.setItem('gemini_admin_user', JSON.stringify(adminUser));
-            return;
-          }
-        }
-      } catch {}
-    }
-
-    setLoginError('نام کاربری یا رمز عبور اشتباه است.');
+    setLoginError('خطا در برقراری ارتباط با پایگاه‌داده سرور. لطفاً اتصال اینترنت خود را بررسی فرمایید.');
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem('gemini_admin_auth');
     sessionStorage.removeItem('gemini_admin_token');
     sessionStorage.removeItem('gemini_admin_user');
+    localStorage.removeItem('gemini_admin_auth');
+    localStorage.removeItem('gemini_admin_token');
+    localStorage.removeItem('gemini_admin_user');
     setIsAuthenticated(false);
     setCurrentAdmin(null);
+    setAdminToken('');
     onClose();
   };
 
@@ -524,19 +525,10 @@ export function AdminPanel({ open, onClose }: Props) {
     localStorage.setItem('gemini_local_admins', JSON.stringify(updated));
   };
 
-  // تغییر رمز عبور مدیر ارشد در تنظیمات
+  // تغییر رمز عبور مدیر ارشد در تنظیمات و پایگاه‌داده متمرکز
   const handleChangeHeadPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordChangeToast(null);
-
-    const storedHash = localStorage.getItem('gemini_head_admin_hash');
-    if (storedHash) {
-      const isOldValid = await verifyPassword(currentHeadPass, storedHash);
-      if (!isOldValid) {
-        setPasswordChangeToast({ type: 'error', msg: 'رمز عبور فعلی اشتباه است.' });
-        return;
-      }
-    }
 
     if (newHeadPass.length < 6) {
       setPasswordChangeToast({ type: 'error', msg: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد.' });
@@ -548,37 +540,40 @@ export function AdminPanel({ open, onClose }: Props) {
       return;
     }
 
-    const newHash = await hashPassword(newHeadPass);
-    localStorage.setItem('gemini_head_admin_hash', newHash);
-
-    const localAdminsRaw = localStorage.getItem('gemini_local_admins');
-    if (localAdminsRaw) {
-      try {
-        const list = JSON.parse(localAdminsRaw);
-        const headIdx = list.findIndex((a: any) => a.username.toLowerCase() === 'admin');
-        if (headIdx !== -1) {
-          list[headIdx].passwordHash = newHash;
-          localStorage.setItem('gemini_local_admins', JSON.stringify(list));
-        }
-      } catch {}
-    }
+    const token =
+      adminToken ||
+      sessionStorage.getItem('gemini_admin_token') ||
+      localStorage.getItem('gemini_admin_token') ||
+      '';
 
     try {
-      await fetch(`${API_BASE}/admin/change-password`, {
+      const res = await fetch(`${API_BASE}/admin/change-password`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ oldPassword: currentHeadPass, newPassword: newHeadPass }),
       });
-    } catch {}
 
-    setCurrentHeadPass('');
-    setNewHeadPass('');
-    setConfirmNewHeadPass('');
-    setPasswordChangeToast({ type: 'success', msg: 'رمز عبور مدیر ارشد با موفقیت و رمزنگاری سالت‌دار بروزرسانی شد.' });
-    setTimeout(() => setPasswordChangeToast(null), 3500);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCurrentHeadPass('');
+        setNewHeadPass('');
+        setConfirmNewHeadPass('');
+        setPasswordChangeToast({
+          type: 'success',
+          msg: 'رمز عبور با موفقیت در دیتابیس مرکزی تغییر یافت و روی تمام دستگاه‌ها فعال است.',
+        });
+        setTimeout(() => setPasswordChangeToast(null), 3500);
+        return;
+      } else {
+        setPasswordChangeToast({ type: 'error', msg: data.error || 'رمز عبور فعلی اشتباه است.' });
+        return;
+      }
+    } catch (err: any) {
+      setPasswordChangeToast({ type: 'error', msg: 'خطا در ارتباط با سرور: ' + (err.message || '') });
+    }
   };
 
   // پاکسازی کامل دیتابیس و داده‌های تستی (Zero-State)
@@ -682,26 +677,61 @@ export function AdminPanel({ open, onClose }: Props) {
 
   const confirmApproval = async () => {
     if (!approveModalOrder) return;
-    const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
-    await approveOrderRemote(approveModalOrder.id, customLinkInput.trim() || undefined, adminNoteInput.trim() || undefined, token);
+    const token =
+      adminToken ||
+      sessionStorage.getItem('gemini_admin_token') ||
+      localStorage.getItem('gemini_admin_token') ||
+      '';
+    await approveOrderRemote(
+      approveModalOrder.id,
+      customLinkInput.trim() || undefined,
+      adminNoteInput.trim() || undefined,
+      token
+    );
     setApproveModalOrder(null);
-    setOrders(getStoredOrders());
+    if (token) {
+      const refreshed = await fetchRemoteOrders(token);
+      setOrders(refreshed);
+    } else {
+      setOrders(getStoredOrders());
+    }
   };
 
   const handleReject = async (orderId: string) => {
-    const reason = prompt('لطفاً دلیل عدم تأیید فیش واریزی را جهت نمایش به خریدار وارد نمایید:', 'عدم تطابق مبلغ واریزی یا نامعتبر بودن شماره پیگیری فیش بانکی');
+    const reason = prompt(
+      'لطفاً دلیل عدم تأیید فیش واریزی را جهت نمایش به خریدار وارد نمایید:',
+      'عدم تطابق مبلغ واریزی یا نامعتبر بودن شماره پیگیری فیش بانکی'
+    );
     if (reason !== null) {
-      const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+      const token =
+        adminToken ||
+        sessionStorage.getItem('gemini_admin_token') ||
+        localStorage.getItem('gemini_admin_token') ||
+        '';
       await rejectOrderRemote(orderId, reason, token);
-      setOrders(getStoredOrders());
+      if (token) {
+        const refreshed = await fetchRemoteOrders(token);
+        setOrders(refreshed);
+      } else {
+        setOrders(getStoredOrders());
+      }
     }
   };
 
   const handleDelete = async (orderId: string) => {
     if (confirm(`آیا از حذف دائم سفارش «${orderId}» اطمینان دارید؟`)) {
-      const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+      const token =
+        adminToken ||
+        sessionStorage.getItem('gemini_admin_token') ||
+        localStorage.getItem('gemini_admin_token') ||
+        '';
       await deleteOrderRemote(orderId, token);
-      setOrders(getStoredOrders());
+      if (token) {
+        const refreshed = await fetchRemoteOrders(token);
+        setOrders(refreshed);
+      } else {
+        setOrders(getStoredOrders());
+      }
     }
   };
 

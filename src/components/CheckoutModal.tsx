@@ -3,7 +3,7 @@ import type { Product } from '../config/site';
 import { PAYMENT_CONFIG, SUPPORT } from '../config/site';
 import { formatToman } from '../lib/format';
 import { getCurrentUser, loginOrRegisterCustomer, requestEmailOtp, verifyEmailOtp } from '../services/authService';
-import { createStoreOrder, type StoreOrder } from '../services/orderStorage';
+import { createStoreOrder, createStoreOrderAsync, type StoreOrder } from '../services/orderStorage';
 import { Icon } from './Icon';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import './CheckoutModal.css';
@@ -202,8 +202,20 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
     });
 
     setLoading(true);
-    // ساخت سفارش در دیتابیس لوکال با وضعیت در انتظار بررسی واریز و اتصال به کاربر
-    setTimeout(() => {
+    // ساخت سفارش در دیتابیس متمرکز Neon و تضمین پایداری چنددستگاهی
+    try {
+      const order = await createStoreOrderAsync({
+        fullName: cleanName,
+        mobile: cleanMobile,
+        gmail: cleanGmail,
+        productName: product.name,
+        amountToman: product.priceToman,
+        paymentMethod,
+        paymentRef: paymentRef.trim(),
+        userId: customer?.id || currentUser?.id,
+      });
+      setCreatedOrder(order);
+    } catch {
       const order = createStoreOrder({
         fullName: cleanName,
         mobile: cleanMobile,
@@ -215,9 +227,10 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
         userId: customer?.id || currentUser?.id,
       });
       setCreatedOrder(order);
+    } finally {
       setLoading(false);
       setStep(3);
-    }, 500);
+    }
   };
 
   const copyCardNumber = () => {

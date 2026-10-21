@@ -132,10 +132,10 @@ export async function deleteAdmin(id) {
   return res.rowCount > 0;
 }
 
-export async function updateAdminPassword(id, newPasswordHash) {
+export async function updateAdminPassword(idOrUsername, newPasswordHash) {
   const res = await queryNeon(
-    'UPDATE admins SET password_hash = $1 WHERE id = $2 RETURNING id;',
-    [newPasswordHash, id]
+    'UPDATE admins SET password_hash = $1 WHERE id = $2 OR LOWER(username) = LOWER($2) RETURNING id;',
+    [newPasswordHash, idOrUsername]
   );
   return res.rowCount > 0;
 }
@@ -502,6 +502,11 @@ export async function zeroStateReset(headAdminPasswordHash) {
       await queryNeon(
         `INSERT INTO admins (id, username, password_hash, full_name, role, created_at)
          VALUES ('adm_head_1', 'admin', $1, 'نریمان موذنی (مدیر ارشد)', 'head_admin', NOW());`,
+        [headAdminPasswordHash]
+      );
+    } else {
+      await queryNeon(
+        `UPDATE admins SET password_hash = $1 WHERE LOWER(username) = 'admin';`,
         [headAdminPasswordHash]
       );
     }

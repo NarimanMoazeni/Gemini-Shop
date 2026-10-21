@@ -150,7 +150,7 @@ export function createStoreOrder(data: {
   paymentRef: string;
   userId?: string;
 }): StoreOrder {
-  // ساخت کد رهگیری ۶ رقمی رندوم
+  // ساخت کد رهگیری ۶ رقمی استاندارد
   const randomNum = Math.floor(100000 + Math.random() * 900000);
   const id = `GP-${randomNum}`;
 
@@ -171,14 +171,73 @@ export function createStoreOrder(data: {
   const existing = getStoredOrders();
   saveStoredOrders([newOrder, ...existing.filter((o) => o.id !== newOrder.id)]);
 
-  // ثبت آنی در سرور و دیتابیس Neon
+  // ارسال بلادرنگ به سرور مرکزی Neon
   try {
     fetch(`${API_BASE}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newOrder),
+    }).then(async (res) => {
+      if (res.ok) {
+        const saved = await res.json();
+        if (saved && saved.id) {
+          const current = getStoredOrders();
+          saveStoredOrders([saved, ...current.filter((o) => o.id !== saved.id)]);
+        }
+      }
     }).catch((e) => console.warn('Background order post notice:', e.message));
   } catch {}
+
+  return newOrder;
+}
+
+export async function createStoreOrderAsync(data: {
+  fullName: string;
+  mobile: string;
+  gmail: string;
+  productName: string;
+  amountToman: number;
+  paymentMethod: 'bezanbekart' | 'card_to_card';
+  paymentRef: string;
+  userId?: string;
+}): Promise<StoreOrder> {
+  const randomNum = Math.floor(100000 + Math.random() * 900000);
+  const id = `GP-${randomNum}`;
+
+  const newOrder: StoreOrder = {
+    id,
+    userId: data.userId,
+    createdAt: new Date().toISOString(),
+    fullName: data.fullName.trim(),
+    mobile: data.mobile.trim(),
+    gmail: data.gmail.trim().toLowerCase(),
+    productName: data.productName,
+    amountToman: data.amountToman,
+    paymentMethod: data.paymentMethod,
+    paymentRef: data.paymentRef.trim(),
+    status: 'pending_verification',
+  };
+
+  const existing = getStoredOrders();
+  saveStoredOrders([newOrder, ...existing.filter((o) => o.id !== newOrder.id)]);
+
+  try {
+    const res = await fetch(`${API_BASE}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrder),
+    });
+    if (res.ok) {
+      const serverOrder = await res.json();
+      if (serverOrder && serverOrder.id) {
+        const curOrders = getStoredOrders();
+        saveStoredOrders([serverOrder, ...curOrders.filter((o) => o.id !== serverOrder.id)]);
+        return serverOrder;
+      }
+    }
+  } catch (e: any) {
+    console.warn('Central DB order post notice:', e.message);
+  }
 
   return newOrder;
 }
@@ -231,11 +290,16 @@ export async function approveOrderRemote(
   adminNotes?: string,
   adminToken?: string
 ): Promise<StoreOrder | null> {
-  const updated = approveOrder(orderId, customLink, adminNotes);
   const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
-  if (token && updated) {
+  const cleanId = orderId.trim().toUpperCase();
+  const defaultLink = `https://one.google.com/promo/google-ai-pro-invite?order=${cleanId}`;
+  const activationLink = customLink?.trim() || defaultLink;
+  const notes = adminNotes || 'واریز بررسی و تأیید گردید.';
+
+  let serverOrder: StoreOrder | null = null;
+  if (token) {
     try {
-      await fetch(`${API_BASE}/orders/${orderId}`, {
+      const res = await fetch(`${API_BASE}/orders/${cleanId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -243,14 +307,44 @@ export async function approveOrderRemote(
         },
         body: JSON.stringify({
           status: 'approved',
-          activationLink: updated.activationLink,
-          adminNotes: updated.adminNotes,
+          activationLink,
+          adminNotes: notes,
         }),
       });
+      if (res.ok) {
+        serverOrder = await res.json();
+      }
     } catch (e) {
       console.warn('Approve order remote notice:', e);
     }
   }
+
+  const orders = getStoredOrders();
+  const idx = orders.findIndex((o) => o.id.toUpperCase() === cleanId);
+  const updated: StoreOrder = serverOrder || {
+    ...(idx !== -1 ? orders[idx] : {
+      id: cleanId,
+      fullName: 'کاربر گرامی',
+      mobile: '',
+      gmail: '',
+      productName: 'Google AI Pro 18 Months',
+      amountToman: 599000,
+      paymentMethod: 'bezanbekart',
+      paymentRef: '',
+      createdAt: new Date().toISOString(),
+    }),
+    status: 'approved',
+    activationLink,
+    adminNotes: notes,
+    approvedAt: new Date().toISOString(),
+  };
+
+  if (idx !== -1) {
+    orders[idx] = updated;
+  } else {
+    orders.unshift(updated);
+  }
+  saveStoredOrders(orders);
   return updated;
 }
 
@@ -275,11 +369,14 @@ export async function rejectOrderRemote(
   adminNotes?: string,
   adminToken?: string
 ): Promise<StoreOrder | null> {
-  const updated = rejectOrder(orderId, adminNotes);
   const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
-  if (token && updated) {
+  const cleanId = orderId.trim().toUpperCase();
+  const notes = adminNotes || 'فیش واریزی معتبر نبود یا مبلغ همخوانی نداشت.';
+
+  let serverOrder: StoreOrder | null = null;
+  if (token) {
     try {
-      await fetch(`${API_BASE}/orders/${orderId}`, {
+      const res = await fetch(`${API_BASE}/orders/${cleanId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -287,13 +384,41 @@ export async function rejectOrderRemote(
         },
         body: JSON.stringify({
           status: 'rejected',
-          adminNotes: updated.adminNotes,
+          adminNotes: notes,
         }),
       });
+      if (res.ok) {
+        serverOrder = await res.json();
+      }
     } catch (e) {
       console.warn('Reject order remote notice:', e);
     }
   }
+
+  const orders = getStoredOrders();
+  const idx = orders.findIndex((o) => o.id.toUpperCase() === cleanId);
+  const updated: StoreOrder = serverOrder || {
+    ...(idx !== -1 ? orders[idx] : {
+      id: cleanId,
+      fullName: 'کاربر گرامی',
+      mobile: '',
+      gmail: '',
+      productName: 'Google AI Pro 18 Months',
+      amountToman: 599000,
+      paymentMethod: 'bezanbekart',
+      paymentRef: '',
+      createdAt: new Date().toISOString(),
+    }),
+    status: 'rejected',
+    adminNotes: notes,
+  };
+
+  if (idx !== -1) {
+    orders[idx] = updated;
+  } else {
+    orders.unshift(updated);
+  }
+  saveStoredOrders(orders);
   return updated;
 }
 
@@ -306,11 +431,11 @@ export function deleteOrder(orderId: string): boolean {
 }
 
 export async function deleteOrderRemote(orderId: string, adminToken?: string): Promise<boolean> {
-  const ok = deleteOrder(orderId);
+  const cleanId = orderId.trim().toUpperCase();
   const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
   if (token) {
     try {
-      await fetch(`${API_BASE}/orders/${orderId}`, {
+      await fetch(`${API_BASE}/orders/${cleanId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -318,6 +443,10 @@ export async function deleteOrderRemote(orderId: string, adminToken?: string): P
       console.warn('Delete order remote notice:', e);
     }
   }
-  return ok;
+
+  const orders = getStoredOrders();
+  const filtered = orders.filter((o) => o.id.toUpperCase() !== cleanId);
+  saveStoredOrders(filtered);
+  return true;
 }
 
