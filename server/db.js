@@ -246,6 +246,57 @@ export async function insertOrder(order) {
   const cleanEmail = String(order.gmail || '').trim().toLowerCase();
   const cleanMobile = String(order.mobile || '').replace(/\D/g, '');
   const cleanId = String(order.id || '').toUpperCase();
+  const cleanFullName = order.fullName || 'کاربر گرامی';
+
+  // بررسی اعتبار کلید خارجی user_id در جدول users یا پیوند با کاربر موجود
+  let validUserId = null;
+  if (order.userId) {
+    try {
+      const uRes = await queryNeon('SELECT id FROM users WHERE id = $1 LIMIT 1;', [order.userId]);
+      if (uRes.rows && uRes.rows.length > 0) {
+        validUserId = uRes.rows[0].id;
+      }
+    } catch (e) {
+      console.warn('Neon check user by id fallback:', e.message);
+    }
+  }
+
+  // اگر شناسه کاربر معتبر نبود، جستجو بر اساس ایمیل
+  if (!validUserId && cleanEmail) {
+    try {
+      const uRes = await queryNeon('SELECT id FROM users WHERE LOWER(gmail) = $1 LIMIT 1;', [cleanEmail]);
+      if (uRes.rows && uRes.rows.length > 0) {
+        validUserId = uRes.rows[0].id;
+      }
+    } catch (e) {
+      console.warn('Neon check user by email fallback:', e.message);
+    }
+  }
+
+  // در صورتی که کاربر هنوز ثبت نشده باشد، ثبت خودکار کاربر تا سفارش بدون مشکل متصل شود
+  if (!validUserId && cleanEmail) {
+    const candidateUserId = order.userId && !order.userId.includes(' ')
+      ? order.userId
+      : `cust_${cleanEmail.replace(/[^a-z0-9]/gi, '_')}`;
+    try {
+      const insertedUser = await queryNeon(
+        `INSERT INTO users (id, full_name, gmail, mobile, created_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (gmail) DO UPDATE SET
+           full_name = COALESCE(EXCLUDED.full_name, users.full_name),
+           mobile = COALESCE(EXCLUDED.mobile, users.mobile)
+         RETURNING id;`,
+        [candidateUserId, cleanFullName, cleanEmail, cleanMobile]
+      );
+      if (insertedUser.rows && insertedUser.rows.length > 0) {
+        validUserId = insertedUser.rows[0].id;
+      }
+    } catch (e) {
+      console.warn('Neon auto-create user on order notice:', e.message);
+      validUserId = null;
+    }
+  }
+
   const res = await queryNeon(
     `INSERT INTO orders (id, user_id, full_name, gmail, mobile, product_name, amount_toman, payment_method, payment_ref, status, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
@@ -259,8 +310,8 @@ export async function insertOrder(order) {
                created_at as "createdAt", approved_at as "approvedAt";`,
     [
       cleanId,
-      order.userId || null,
-      order.fullName || 'کاربر گرامی',
+      validUserId,
+      cleanFullName,
       cleanEmail,
       cleanMobile,
       order.productName || 'Google AI Pro 18 Months',
