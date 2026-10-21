@@ -144,7 +144,7 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
     // ۳. اعتبارسنجی ایمیل
     const cleanGmail = sanitizeEmail(gmail);
     if (!cleanGmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanGmail)) {
-      setError('لطفاً یک آدرس ایمیل معتبر (مانند yourname@gmail.com) وارد فرمایید.');
+      setError('لطفاً یک آدرس ایمیل معتبر (مانند user@domain.com) وارد فرمایید.');
       return;
     }
 
@@ -353,13 +353,16 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
         {step === 1 ? (
           authMode === 'register' ? (
             /* فرم ثبت‌نام با ۴ فیلد: نام و نام خانوادگی، نام کاربری، ایمیل، رمز عبور */
-            <form onSubmit={handleRegisterSubmit} className="auth-card__form">
+            <form onSubmit={handleRegisterSubmit} className="auth-card__form" noValidate>
               <div className="auth-card__field">
-                <label>نام و نام خانوادگی:</label>
+                <label htmlFor="reg-fullname">نام و نام خانوادگی:</label>
                 <div className="auth-input-wrapper">
                   <input
                     ref={inputRef}
+                    id="reg-fullname"
+                    name="store_user_fullname"
                     type="text"
+                    autoComplete="name"
                     placeholder="مثال: علی محمدی"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -369,10 +372,13 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
               </div>
 
               <div className="auth-card__field">
-                <label>نام کاربری (Username به انگلیسی):</label>
+                <label htmlFor="reg-username">نام کاربری در فروشگاه (Username):</label>
                 <div className={`auth-input-wrapper ${usernameTaken ? 'auth-input-wrapper--error' : ''}`}>
                   <input
+                    id="reg-username"
+                    name="store_user_username"
                     type="text"
+                    autoComplete="username"
                     placeholder="مثال: ali_mohammadi"
                     dir="ltr"
                     className="en"
@@ -390,17 +396,20 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
                   </small>
                 ) : (
                   <small className="auth-card__hint">
-                    شامل حروف انگلیسی و اعداد (جهت ورود آسان به سایت در دفعات بعدی)
+                    شامل حروف انگلیسی و اعداد (جهت ورود به پنل کاربری در مراجعات بعدی)
                   </small>
                 )}
               </div>
 
               <div className="auth-card__field">
-                <label>آدرس ایمیل / جیمیل (جهت دریافت کد تأیید):</label>
+                <label htmlFor="reg-email">ایمیل شخصی (جهت ارسال کد تأیید، لایسنس و فاکتور):</label>
                 <div className="auth-input-wrapper">
                   <input
+                    id="reg-email"
+                    name="store_user_email"
                     type="email"
-                    placeholder="name@gmail.com"
+                    autoComplete="email"
+                    placeholder="user@example.com"
                     dir="ltr"
                     className="en"
                     value={gmail}
@@ -409,16 +418,19 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
                   />
                 </div>
                 <small className="auth-card__hint">
-                  کد تأیید یکبارمصرف به این آدرس ارسال خواهد شد
+                  کد تأیید یکبارمصرف و مشخصات فعال‌سازی به این آدرس ارسال خواهد شد
                 </small>
               </div>
 
               <div className="auth-card__field">
-                <label>رمز عبور (Password):</label>
+                <label htmlFor="reg-password">رمز عبور اختصاصی برای حساب فروشگاه:</label>
                 <div className="auth-input-wrapper auth-input-wrapper--password">
                   <input
+                    id="reg-password"
+                    name="store_user_new_password"
                     type={showRegisterPassword ? 'text' : 'password'}
-                    placeholder="حداقل ۶ کاراکتر"
+                    autoComplete="new-password"
+                    placeholder="حداقل ۶ کاراکتر (رمز عبور دلخواه)"
                     dir="ltr"
                     className="en"
                     value={registerPassword}
@@ -434,6 +446,16 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
                     <Icon name={showRegisterPassword ? 'eyeOff' : 'eye'} size={18} />
                   </button>
                 </div>
+                <small className="auth-card__hint">
+                  🔒 این رمز عبور، صرفاً پسورد اختصاصی حساب شما در این وب‌سایت است؛ هرگز رمز ایمیل شخصی خود را وارد نکنید.
+                </small>
+              </div>
+
+              <div className="auth-card__security-badge">
+                <Icon name="shield" size={16} />
+                <span>
+                  <strong>تضمین امنیت و حریم خصوصی:</strong> برای فعال‌سازی لایسنس، هرگز نیازی به وارد کردن رمز جیمیل یا حساب گوگل شخصی نیست و این وب‌سایت هیچ‌گاه پسورد ایمیل شما را درخواست نمی‌کند.
+                </span>
               </div>
 
               <div className="auth-card__actions">
@@ -463,14 +485,17 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
             </form>
           ) : (
             /* فرم ورود با نام کاربری یا ایمیل و رمز عبور (بدون نیاز به OTP) */
-            <form onSubmit={handleLoginSubmit} className="auth-card__form">
+            <form onSubmit={handleLoginSubmit} className="auth-card__form" noValidate>
               <div className="auth-card__field">
-                <label>نام کاربری یا آدرس ایمیل:</label>
+                <label htmlFor="login-identifier">نام کاربری یا آدرس ایمیل ثبت‌شده در سایت:</label>
                 <div className="auth-input-wrapper">
                   <input
                     ref={inputRef}
+                    id="login-identifier"
+                    name="store_login_username"
                     type="text"
-                    placeholder="نام کاربری یا Gmail شما"
+                    autoComplete="username"
+                    placeholder="نام کاربری یا ایمیل شما"
                     dir="ltr"
                     className="en"
                     value={loginIdentifier}
@@ -481,11 +506,14 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
               </div>
 
               <div className="auth-card__field">
-                <label>رمز عبور:</label>
+                <label htmlFor="login-pwd">رمز عبور حساب کاربری در فروشگاه:</label>
                 <div className="auth-input-wrapper auth-input-wrapper--password">
                   <input
+                    id="login-pwd"
+                    name="store_login_password"
                     type={showLoginPassword ? 'text' : 'password'}
-                    placeholder="رمز عبور حساب خود را وارد فرمایید"
+                    autoComplete="current-password"
+                    placeholder="رمز عبور تعیین‌شده در سایت"
                     dir="ltr"
                     className="en"
                     value={loginPassword}
@@ -501,6 +529,13 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
                     <Icon name={showLoginPassword ? 'eyeOff' : 'eye'} size={18} />
                   </button>
                 </div>
+              </div>
+
+              <div className="auth-card__security-badge">
+                <Icon name="shield" size={16} />
+                <span>
+                  <strong>حریم خصوصی:</strong> رمز عبور شما فقط جهت ورود به پنل کاربری همین سایت و مشاهده سوابق خرید و لایسنس است.
+                </span>
               </div>
 
               <div className="auth-card__actions">

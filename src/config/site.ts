@@ -60,7 +60,7 @@ export const PAYMENT_CONFIG = {
 export const SITE = {
   brand: 'Gemini Shop',
   affiliationNotice:
-    'Google و Gemini علامت‌های تجاری شرکت Google LLC هستند. وب‌سایت Gemini Shop ارائه‌دهنده مستقل لایسنس و فعال‌سازی روی ایمیل شخصی است',
+    'Google و Gemini علامت‌های تجاری ثبت‌شده متعلق به Google LLC هستند. این وب‌سایت یک فروشگاه کاملاً مستقل جهت ارائه لایسنس و اشتراک است و هیچ‌گونه وابستگی رسمی به گوگل ندارد. کلیه خدمات فعال‌سازی بدون نیاز به رمز عبور ایمیل خریدار ارائه می‌شود.',
   copyright: '© ۱۴۰۵ Gemini Shop. تمامی حقوق محفوظ است',
 };
 
