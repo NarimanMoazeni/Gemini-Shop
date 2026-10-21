@@ -22,7 +22,22 @@ export default function App() {
   const [isReturnFromGateway, setIsReturnFromGateway] = useState(false);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackOrderId, setTrackOrderId] = useState<string | undefined>(undefined);
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const h = window.location.hash.toLowerCase();
+      const s = new URLSearchParams(window.location.search);
+      return (
+        p === '/admin' ||
+        p === '/admin/' ||
+        h === '#admin' ||
+        h === '#admin-portal' ||
+        s.get('portal') === 'admin' ||
+        s.get('admin') === '1'
+      );
+    }
+    return false;
+  });
 
   // وضعیت احراز هویت و پروفایل مشتری
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentUser());
@@ -40,9 +55,10 @@ export default function App() {
     return () => window.removeEventListener('gemini_auth_changed', handleAuth);
   }, []);
 
-  // باز کردن محرمانه پنل ادمین از طریق هش URL، پارامتر پورتال یا کلید میانبر کیبورد (Ctrl + Shift + A)
+  // باز کردن اختصاصی پنل ادمین از طریق آدرس /admin، هش URL، پارامتر پورتال یا کلید میانبر کیبورد (Ctrl + Shift + A)
   useEffect(() => {
     const checkAdminTrigger = () => {
+      const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
       const params = new URLSearchParams(window.location.search);
 
@@ -58,14 +74,22 @@ export default function App() {
         setCheckout(true);
       }
 
-      if (
+      const shouldOpenAdmin = (
+        path === '/admin' ||
+        path === '/admin/' ||
         hash === '#admin-portal' ||
         hash === '#admin' ||
         params.get('portal') === 'admin' ||
         params.get('admin') === '1'
-      ) {
+      );
+
+      if (shouldOpenAdmin) {
         setAdminOpen(true);
+        document.title = 'Gemini Shop | پنل اختصاصی مدیریت و مانیتورینگ';
+      } else if (path !== '/admin' && path !== '/admin/') {
+        setAdminOpen(false);
       }
+
       if (
         hash === '#profile' ||
         hash === '#user-profile' ||
@@ -77,18 +101,34 @@ export default function App() {
 
     checkAdminTrigger();
     window.addEventListener('hashchange', checkAdminTrigger);
+    window.addEventListener('popstate', checkAdminTrigger);
 
     // کلید میانبر امن برای مدیران سایت: Ctrl + Shift + A یا Cmd + Shift + A
     const handleAdminKeydown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A' || e.key === 'ش')) {
         e.preventDefault();
-        setAdminOpen((prev) => !prev);
+        setAdminOpen((prev) => {
+          const next = !prev;
+          if (next) {
+            if (window.location.pathname.toLowerCase() !== '/admin') {
+              window.history.pushState({ portal: 'admin' }, '', '/admin');
+            }
+            document.title = 'Gemini Shop | پنل اختصاصی مدیریت و مانیتورینگ';
+          } else {
+            if (window.location.pathname.toLowerCase() === '/admin' || window.location.pathname.toLowerCase() === '/admin/') {
+              window.history.pushState(null, '', '/');
+            }
+            document.title = 'Gemini 2.5 Flash & Pro | اکانت رسمی هوش مصنوعی گوگل';
+          }
+          return next;
+        });
       }
     };
     window.addEventListener('keydown', handleAdminKeydown);
 
     return () => {
       window.removeEventListener('hashchange', checkAdminTrigger);
+      window.removeEventListener('popstate', checkAdminTrigger);
       window.removeEventListener('keydown', handleAdminKeydown);
     };
   }, []);
@@ -119,6 +159,9 @@ export default function App() {
 
   const closeAdmin = useCallback(() => {
     setAdminOpen(false);
+    if (window.location.pathname.toLowerCase() === '/admin' || window.location.pathname.toLowerCase() === '/admin/') {
+      window.history.pushState(null, '', '/');
+    }
     const hash = window.location.hash.toLowerCase();
     if (hash === '#admin-portal' || hash === '#admin') {
       history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -130,6 +173,7 @@ export default function App() {
       const cleanSearch = params.toString() ? `?${params.toString()}` : '';
       history.replaceState(null, '', window.location.pathname + cleanSearch + window.location.hash);
     }
+    document.title = 'Gemini 2.5 Flash & Pro | اکانت رسمی هوش مصنوعی گوگل';
   }, []);
 
   const openAuth = useCallback((mode: 'login' | 'register' = 'register') => {

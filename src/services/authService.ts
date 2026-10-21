@@ -5,6 +5,7 @@
 
 import { sanitizeInput, sanitizeMobile, sanitizeEmail } from '../lib/sanitize';
 import { getStoredOrders, type StoreOrder } from './orderStorage';
+import { API_BASE } from '../config/api';
 
 export interface UserProfile {
   id: string;
@@ -16,7 +17,6 @@ export interface UserProfile {
 }
 
 const AUTH_STORAGE_KEY = 'gemini_customer_profile_v1';
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api');
 
 /**
  * دریافت مشخصات مشتری جاری از حافظه محلی

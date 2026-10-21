@@ -8,15 +8,16 @@ import {
   sendAdminReply,
 } from '../services/chatService';
 import {
-  approveOrder,
-  deleteOrder,
   getStoredOrders,
-  rejectOrder,
+  approveOrderRemote,
+  rejectOrderRemote,
+  deleteOrderRemote,
   type StoreOrder,
 } from '../services/orderStorage';
 import { Icon } from './Icon';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { hashPassword, verifyPassword } from '../lib/crypto';
+import { API_BASE } from '../config/api';
 import './AdminPanel.css';
 
 interface Props {
@@ -32,8 +33,6 @@ export interface AdminUser {
   passwordHash?: string;
   createdAt?: string;
 }
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api');
 
 export function AdminPanel({ open, onClose }: Props) {
   useBodyScrollLock(open);
@@ -133,33 +132,46 @@ export function AdminPanel({ open, onClose }: Props) {
     }
   }, []);
 
-  // بارگذاری لیست ادمین‌ها
-  const loadAdminsList = async () => {
+  // بارگذاری لیست ادمین‌ها با همگام‌سازی دیتابیس پایدار Neon
+  const loadAdminsList = async (customToken?: string) => {
+    const token = customToken || adminToken || sessionStorage.getItem('gemini_admin_token') || '';
     try {
-      const res = await fetch(`${API_BASE}/admin/users`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAdminsList(data);
+      if (token) {
+        const res = await fetch(`${API_BASE}/admin/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setAdminsList(data);
+            localStorage.setItem('gemini_local_admins', JSON.stringify(data));
+            return;
+          }
+        }
       }
-    } catch {
-      const localAdmins = localStorage.getItem('gemini_local_admins');
-      if (localAdmins) {
-        try {
-          setAdminsList(JSON.parse(localAdmins));
-        } catch {}
-      } else {
-        setAdminsList([
-          {
-            id: 'adm_head_1',
-            username: 'admin',
-            fullName: 'نریمان موذنی (مدیر ارشد)',
-            role: 'head_admin',
-          },
-        ]);
-      }
+    } catch (err) {
+      console.warn('Backend loadAdminsList notice:', err);
     }
+
+    const localAdmins = localStorage.getItem('gemini_local_admins');
+    if (localAdmins) {
+      try {
+        const parsed = JSON.parse(localAdmins);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAdminsList(parsed);
+          return;
+        }
+      } catch {}
+    }
+
+    setAdminsList([
+      {
+        id: 'adm_head_1',
+        username: 'admin',
+        fullName: 'نریمان موذنی (مدیر ارشد)',
+        role: 'head_admin',
+      },
+    ]);
   };
 
   // واکشی تنظیمات جیمیل SMTP از سرور
@@ -417,12 +429,14 @@ export function AdminPanel({ open, onClose }: Props) {
       return;
     }
 
+    const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+
     try {
       const res = await fetch(`${API_BASE}/admin/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           username: cleanUsername,
@@ -440,10 +454,16 @@ export function AdminPanel({ open, onClose }: Props) {
         setNewAdminFullName('');
         setNewAdminPassword('');
         setNewAdminRole('regular_admin');
-        loadAdminsList();
+        await loadAdminsList(token);
+        return;
+      } else if (data.error) {
+        setAddAdminError(data.error);
+        setAddAdminLoading(false);
         return;
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Backend add admin notice:', err);
+    }
 
     // ذخیره در محیط لوکال با هش امن سالت‌دار (Salted SHA-256)
     setAddAdminLoading(false);
@@ -487,12 +507,17 @@ export function AdminPanel({ open, onClose }: Props) {
     }
     if (!confirm(`آیا از حذف دسترسی ادمین «${adminName}» اطمینان دارید؟`)) return;
 
+    const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
     try {
       await fetch(`${API_BASE}/admin/users/${adminId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${adminToken}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
-    } catch {}
+      await loadAdminsList(token);
+      return;
+    } catch (err) {
+      console.warn('Backend delete admin notice:', err);
+    }
 
     const updated = adminsList.filter((a) => a.id !== adminId);
     setAdminsList(updated);
@@ -562,22 +587,32 @@ export function AdminPanel({ open, onClose }: Props) {
       return;
     }
 
+    const token = adminToken || sessionStorage.getItem('gemini_admin_token') || localStorage.getItem('gemini_admin_token') || '';
+    const adminUser = sessionStorage.getItem('gemini_admin_user');
+
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/admin/zero-state-reset`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Zero-state remote reset error:', err);
+    }
+
     localStorage.removeItem('gemini_pro_orders_v1');
     localStorage.removeItem('gemini_pro_chat_sessions_v1');
     localStorage.removeItem('gemini_customer_profile_v1');
     localStorage.removeItem('gemini_pro_user_session_id');
     localStorage.removeItem('gemini_all_registered_emails');
-    sessionStorage.clear();
 
-    try {
-      const token = localStorage.getItem('gemini_admin_token') || sessionStorage.getItem('gemini_admin_token');
-      if (token) {
-        await fetch('/api/admin/zero-state-reset', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => {});
-      }
-    } catch {}
+    // حفظ نشست امن مدیر ارشد پس از ریست کامل داده‌های فروشگاه
+    if (token) {
+      sessionStorage.setItem('gemini_admin_auth', 'true');
+      sessionStorage.setItem('gemini_admin_token', token);
+      if (adminUser) sessionStorage.setItem('gemini_admin_user', adminUser);
+    }
 
     setOrders([]);
     setChatMessages([]);
@@ -645,22 +680,28 @@ export function AdminPanel({ open, onClose }: Props) {
     setAdminNoteInput(order.adminNotes || 'واریز فیش بانکی با موفقیت احراز هویت شد.');
   };
 
-  const confirmApproval = () => {
+  const confirmApproval = async () => {
     if (!approveModalOrder) return;
-    approveOrder(approveModalOrder.id, customLinkInput.trim() || undefined, adminNoteInput.trim() || undefined);
+    const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+    await approveOrderRemote(approveModalOrder.id, customLinkInput.trim() || undefined, adminNoteInput.trim() || undefined, token);
     setApproveModalOrder(null);
+    setOrders(getStoredOrders());
   };
 
-  const handleReject = (orderId: string) => {
+  const handleReject = async (orderId: string) => {
     const reason = prompt('لطفاً دلیل عدم تأیید فیش واریزی را جهت نمایش به خریدار وارد نمایید:', 'عدم تطابق مبلغ واریزی یا نامعتبر بودن شماره پیگیری فیش بانکی');
     if (reason !== null) {
-      rejectOrder(orderId, reason);
+      const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+      await rejectOrderRemote(orderId, reason, token);
+      setOrders(getStoredOrders());
     }
   };
 
-  const handleDelete = (orderId: string) => {
+  const handleDelete = async (orderId: string) => {
     if (confirm(`آیا از حذف دائم سفارش «${orderId}» اطمینان دارید؟`)) {
-      deleteOrder(orderId);
+      const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+      await deleteOrderRemote(orderId, token);
+      setOrders(getStoredOrders());
     }
   };
 
@@ -733,7 +774,7 @@ export function AdminPanel({ open, onClose }: Props) {
   // فرم ورود به پنل یا راه‌اندازی اولیه رمز مدیر ارشد
   if (!isAuthenticated) {
     return (
-      <div className="portal-overlay" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="portal-overlay portal-overlay--admin" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
         <div className="admin-login-box">
           <div className="admin-login-brand">
             <div className="portal-sidebar__logo-wrap">
@@ -809,7 +850,7 @@ export function AdminPanel({ open, onClose }: Props) {
                   </button>
                 )}
                 <button type="button" className="btn-admin-login-cancel" onClick={onClose}>
-                  انصراف
+                  بازگشت به سایت
                 </button>
               </div>
             </form>
@@ -845,7 +886,7 @@ export function AdminPanel({ open, onClose }: Props) {
                   {loginLoading ? 'در حال ورود...' : 'ورود به پنل مدیریت'}
                 </button>
                 <button type="button" className="btn-admin-login-cancel" onClick={onClose}>
-                  انصراف
+                  بازگشت به سایت
                 </button>
               </div>
 
@@ -879,7 +920,7 @@ export function AdminPanel({ open, onClose }: Props) {
   const isHead = currentAdmin?.role === 'head_admin';
 
   return (
-    <div className="portal-overlay" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="portal-overlay portal-overlay--admin" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="portal-window portal-window--admin" role="dialog" aria-modal="true" aria-labelledby="admin-panel-title">
         
         {/* ==================== ستون سایدبار راست (Right Sidebar) - دقیقاً مطابق رفرنس عکس ۱ ==================== */}
@@ -1196,9 +1237,19 @@ export function AdminPanel({ open, onClose }: Props) {
 
               <button
                 type="button"
+                className="topbar-return-store-btn"
+                onClick={onClose}
+                title="مشاهده و بازگشت به وبسایت اصلی"
+              >
+                <Icon name="arrow" size={13} />
+                <span>بازگشت به سایت</span>
+              </button>
+
+              <button
+                type="button"
                 className="portal-close-circle"
                 onClick={onClose}
-                aria-label="بستن پنل"
+                aria-label="بستن پنل مدیریت"
                 title="بستن (Esc)"
               >
                 <Icon name="close" size={16} />

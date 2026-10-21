@@ -1,8 +1,9 @@
 /**
  * سرویس ذخیره‌سازی و مدیریت سفارشات فروشگاه.
- * از localStorage به عنوان دیتابیس لوکال استفاده می‌کنه تا سفارشات، وضعیت تأیید واریز «بزن به کارت»
- * و قفل یا باز بودن لینک فعال‌سازی به‌صورت دائم و بدون نیاز به سرور پیچیده ذخیره بمونن.
+ * همگام‌سازی دوطرفه میان localStorage و پایگاه‌داده پایدار Neon PostgreSQL از طریق API متمرکز
  */
+
+import { API_BASE } from '../config/api';
 
 export interface StoreOrder {
   id: string; // e.g. "GP-742195"
@@ -15,7 +16,7 @@ export interface StoreOrder {
   paymentMethod: 'bezanbekart' | 'card_to_card';
   paymentRef: string; // شماره پیگیری یا فیش واریز مشتری
   status: 'pending_verification' | 'approved' | 'rejected';
-  activationLink?: string; // لینک فعال‌سازی اختصاصی گوگل (تنها پس از تأیید واریز توسط ادمین در دسترس است)
+  activationLink?: string; // لینک فعال‌سازی اختصاصی گوگل
   adminNotes?: string;
   approvedAt?: string;
 }
@@ -42,6 +43,30 @@ export function saveStoredOrders(orders: StoreOrder[]) {
   }
 }
 
+/**
+ * واکشی سفارشات از دیتابیس پایدار سرور (Neon PostgreSQL)
+ */
+export async function fetchRemoteOrders(adminToken?: string): Promise<StoreOrder[]> {
+  try {
+    const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+    if (!token) return getStoredOrders();
+
+    const res = await fetch(`${API_BASE}/orders`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        saveStoredOrders(data);
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching remote orders:', err);
+  }
+  return getStoredOrders();
+}
+
 export function createStoreOrder(data: {
   fullName: string;
   mobile: string;
@@ -51,7 +76,7 @@ export function createStoreOrder(data: {
   paymentMethod: 'bezanbekart' | 'card_to_card';
   paymentRef: string;
 }): StoreOrder {
-  // ساخت کد رهگیری ۶ رقمی رندوم شیک
+  // ساخت کد رهگیری ۶ رقمی رندوم
   const randomNum = Math.floor(100000 + Math.random() * 900000);
   const id = `GP-${randomNum}`;
 
@@ -65,11 +90,21 @@ export function createStoreOrder(data: {
     amountToman: data.amountToman,
     paymentMethod: data.paymentMethod,
     paymentRef: data.paymentRef,
-    status: 'pending_verification', // در ابتدا قفل و در انتظار بررسی واریز
+    status: 'pending_verification',
   };
 
   const existing = getStoredOrders();
   saveStoredOrders([newOrder, ...existing]);
+
+  // ثبت آنی در سرور و دیتابیس Neon
+  try {
+    fetch(`${API_BASE}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrder),
+    }).catch((e) => console.warn('Background order post notice:', e.message));
+  } catch {}
+
   return newOrder;
 }
 
@@ -100,7 +135,6 @@ export function approveOrder(
   const idx = orders.findIndex((o) => o.id.toUpperCase() === orderId.trim().toUpperCase());
   if (idx === -1) return null;
 
-  // لینک رسمی اختصاصی فعال‌سازی گوگل (دعوت‌نامه رسمی)
   const defaultLink = `https://one.google.com/promo/google-ai-pro-invite?order=${orders[idx].id}&account=${encodeURIComponent(orders[idx].gmail)}`;
 
   const updated: StoreOrder = {
@@ -113,6 +147,35 @@ export function approveOrder(
 
   orders[idx] = updated;
   saveStoredOrders(orders);
+  return updated;
+}
+
+export async function approveOrderRemote(
+  orderId: string,
+  customLink?: string,
+  adminNotes?: string,
+  adminToken?: string
+): Promise<StoreOrder | null> {
+  const updated = approveOrder(orderId, customLink, adminNotes);
+  const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+  if (token && updated) {
+    try {
+      await fetch(`${API_BASE}/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: 'approved',
+          activationLink: updated.activationLink,
+          adminNotes: updated.adminNotes,
+        }),
+      });
+    } catch (e) {
+      console.warn('Approve order remote notice:', e);
+    }
+  }
   return updated;
 }
 
@@ -132,6 +195,33 @@ export function rejectOrder(orderId: string, adminNotes?: string): StoreOrder | 
   return updated;
 }
 
+export async function rejectOrderRemote(
+  orderId: string,
+  adminNotes?: string,
+  adminToken?: string
+): Promise<StoreOrder | null> {
+  const updated = rejectOrder(orderId, adminNotes);
+  const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+  if (token && updated) {
+    try {
+      await fetch(`${API_BASE}/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: 'rejected',
+          adminNotes: updated.adminNotes,
+        }),
+      });
+    } catch (e) {
+      console.warn('Reject order remote notice:', e);
+    }
+  }
+  return updated;
+}
+
 export function deleteOrder(orderId: string): boolean {
   const orders = getStoredOrders();
   const filtered = orders.filter((o) => o.id.toUpperCase() !== orderId.trim().toUpperCase());
@@ -139,3 +229,20 @@ export function deleteOrder(orderId: string): boolean {
   saveStoredOrders(filtered);
   return true;
 }
+
+export async function deleteOrderRemote(orderId: string, adminToken?: string): Promise<boolean> {
+  const ok = deleteOrder(orderId);
+  const token = adminToken || sessionStorage.getItem('gemini_admin_token') || '';
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (e) {
+      console.warn('Delete order remote notice:', e);
+    }
+  }
+  return ok;
+}
+
