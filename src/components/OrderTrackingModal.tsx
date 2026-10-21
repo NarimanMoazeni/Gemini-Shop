@@ -93,7 +93,13 @@ export function OrderTrackingModal({ open, onClose, initialOrderId, onOpenChat }
 
   return (
     <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()} dir="rtl">
-      <div className="modal__card modal__card--wide tracking-modal" role="dialog" aria-modal="true">
+      <div
+        className="modal__card modal__card--wide tracking-modal"
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button className="modal__close" onClick={onClose} aria-label="بستن پنجره">
           <Icon name="close" size={20} />
         </button>

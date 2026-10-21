@@ -20,6 +20,7 @@ interface Props {
 
 export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }: Props) {
   useBodyScrollLock(open);
+  const isBackdropMouseDownRef = useRef(false);
   const [authMode, setAuthMode] = useState<'register' | 'login'>(initialMode);
   const [step, setStep] = useState<1 | 2>(1); // Step 1: Form, Step 2: OTP (only for register)
 
@@ -238,8 +239,35 @@ export function AuthModal({ open, initialMode = 'register', onClose, onSuccess }
   };
 
   return (
-    <div className="auth-overlay" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="auth-card" role="dialog" aria-modal="true">
+    <div
+      className="auth-overlay"
+      dir="rtl"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && e.button === 0) {
+          isBackdropMouseDownRef.current = true;
+        } else {
+          isBackdropMouseDownRef.current = false;
+        }
+      }}
+      onClick={(e) => {
+        if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        isBackdropMouseDownRef.current = false;
+      }}
+    >
+      <div
+        className="auth-card"
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          isBackdropMouseDownRef.current = false;
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
         <div className="auth-card__header">
           <div className="auth-card__icon-wrap">
             <Icon name={step === 1 ? (authMode === 'register' ? 'sparkle' : 'user') : 'shield'} size={24} />

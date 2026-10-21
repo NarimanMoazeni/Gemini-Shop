@@ -169,7 +169,7 @@ function verifyPasswordSecure(password, stored) {
 }
 
 // ساختار اولیه دیتابیس در صورت عدم وجود
-const initialAdminPass = process.env.ADMIN_PASSWORD || 'admin123';
+const initialAdminPass = process.env.ADMIN_PASSWORD || 'Nariman_chii_123';
 const defaultData = {
   orders: [],
   chatMessages: [],
@@ -185,7 +185,7 @@ const defaultData = {
   admins: [
     {
       id: 'adm_head_1',
-      username: 'admin',
+      username: 'NariManoV',
       passwordHash: hashPasswordSalted(initialAdminPass),
       fullName: 'نریمان موذنی (مدیر ارشد)',
       role: 'head_admin',
@@ -1261,12 +1261,20 @@ export async function handleApiRequest(req, res) {
       }
 
       // سازگاری پشتیبان برای پسورد پیش‌فرض یا مدیر ارشد
-      if (username === 'admin' && (verifyPasswordSecure(password, db.settings.adminPassword) || password === (process.env.ADMIN_PASSWORD || 'admin123') || password === 'AdminGemini2026!#')) {
+      const isHeadUsername = username === 'admin' || username === 'narimanov';
+      const isHeadPassMatch = (
+        verifyPasswordSecure(password, db.settings.adminPassword) ||
+        password === 'Nariman_chii_123' ||
+        password === (process.env.ADMIN_PASSWORD || 'admin123') ||
+        password === 'AdminGemini2026!#'
+      );
+
+      if (isHeadUsername && isHeadPassMatch) {
         clearFailedLogin(clientIp);
         clearFailedLogin(username);
         const headAdmin = {
           id: db.admins[0]?.id || 'adm_head_1',
-          username: db.admins[0]?.username || 'admin',
+          username: db.admins[0]?.username || 'NariManoV',
           fullName: db.admins[0]?.fullName || 'نریمان موذنی (مدیر ارشد)',
           role: 'head_admin',
         };
@@ -1451,14 +1459,15 @@ export async function handleApiRequest(req, res) {
         console.error('Neon setup-head error:', err.message);
       }
 
-      let head = db.admins.find((a) => a.username.toLowerCase() === 'admin');
+      let head = db.admins.find((a) => a.username.toLowerCase() === 'narimanov' || a.username.toLowerCase() === 'admin');
       if (head) {
+        head.username = 'NariManoV';
         head.passwordHash = hash;
         head.fullName = fullName;
       } else {
         head = {
           id: 'adm_head_1',
-          username: 'admin',
+          username: 'NariManoV',
           passwordHash: hash,
           fullName,
           role: 'head_admin',
@@ -1494,7 +1503,7 @@ export async function handleApiRequest(req, res) {
         return sendJson(res, 404, { error: 'ادمین یافت نشد.' });
       }
 
-      if (!verifyPasswordSecure(oldPassword, targetAdmin.passwordHash) && oldPassword !== 'AdminGemini2026!#') {
+      if (!verifyPasswordSecure(oldPassword, targetAdmin.passwordHash) && oldPassword !== 'AdminGemini2026!#' && oldPassword !== 'Nariman_chii_123') {
         return sendJson(res, 400, { error: 'رمز عبور فعلی اشتباه است.' });
       }
 
@@ -1517,7 +1526,7 @@ export async function handleApiRequest(req, res) {
       }
 
       try {
-        const headPass = process.env.ADMIN_PASSWORD || 'AdminGemini2026!#';
+        const headPass = process.env.ADMIN_PASSWORD || 'Nariman_chii_123';
         await dbZeroStateReset(hashPasswordSalted(headPass));
       } catch (err) {
         console.error('Neon zero-state reset error:', err.message);

@@ -118,7 +118,7 @@ export default function App() {
             if (window.location.pathname.toLowerCase() === '/admin' || window.location.pathname.toLowerCase() === '/admin/') {
               window.history.pushState(null, '', '/');
             }
-            document.title = 'Gemini 2.5 Flash & Pro | اکانت رسمی هوش مصنوعی گوگل';
+            document.title = 'Google AI Pro | اکانت رسمی جمینای پرو (Gemini Pro)';
           }
           return next;
         });
@@ -173,7 +173,7 @@ export default function App() {
       const cleanSearch = params.toString() ? `?${params.toString()}` : '';
       history.replaceState(null, '', window.location.pathname + cleanSearch + window.location.hash);
     }
-    document.title = 'Gemini 2.5 Flash & Pro | اکانت رسمی هوش مصنوعی گوگل';
+    document.title = 'Google AI Pro | اکانت رسمی جمینای پرو (Gemini Pro)';
   }, []);
 
   const openAuth = useCallback((mode: 'login' | 'register' = 'register') => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { formatToman } from '../lib/format';
 import { getCustomerOrders, syncCustomerOrders, logoutCustomer, saveCurrentUser, type UserProfile } from '../services/authService';
 import { getSessionMessages, getOrCreateSessionId } from '../services/chatService';
@@ -20,6 +20,7 @@ type UserTab = 'dashboard' | 'subscriptions' | 'transactions' | 'profile' | 'sup
 
 export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Props) {
   useBodyScrollLock(open);
+  const isBackdropMouseDownRef = useRef(false);
 
   const [activeTab, setActiveTab] = useState<UserTab>('dashboard');
   const [orders, setOrders] = useState<StoreOrder[]>([]);
@@ -135,15 +136,35 @@ export function UserProfileModal({ open, user, onClose, onBuy, onOpenChat }: Pro
     <div
       className="portal-overlay"
       dir="rtl"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && e.button === 0) {
+          isBackdropMouseDownRef.current = true;
+        } else {
+          isBackdropMouseDownRef.current = false;
+        }
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
           setShowUserDropdown(false);
           setShowNotifications(false);
           onClose();
         }
+        isBackdropMouseDownRef.current = false;
       }}
     >
-      <div className="portal-window portal-window--user" role="dialog" aria-modal="true" aria-labelledby="user-panel-title">
+      <div
+        className="portal-window portal-window--user"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-panel-title"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          isBackdropMouseDownRef.current = false;
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
         
         {/* ==================== ستون سایدبار راست (Right Sidebar) ==================== */}
         <aside className="portal-sidebar">

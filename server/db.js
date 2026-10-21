@@ -68,8 +68,8 @@ export async function queryNeon(query, params = []) {
 export async function ensureHeadAdmin(defaultPasswordHash) {
   try {
     const res = await queryNeon(
-      'SELECT id, username, full_name, password_hash, role FROM admins WHERE LOWER(username) = $1 LIMIT 1;',
-      ['admin']
+      'SELECT id, username, full_name, password_hash, role FROM admins WHERE LOWER(username) IN ($1, $2) LIMIT 1;',
+      ['narimanov', 'admin']
     );
     if (!res.rows || res.rows.length === 0) {
       console.log('⚡ Initializing Head Admin in Neon PostgreSQL...');
@@ -77,7 +77,7 @@ export async function ensureHeadAdmin(defaultPasswordHash) {
         `INSERT INTO admins (id, username, password_hash, full_name, role, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW())
          ON CONFLICT (username) DO NOTHING;`,
-        ['adm_head_1', 'admin', defaultPasswordHash, 'نریمان موذنی (مدیر ارشد)', 'head_admin']
+        ['adm_head_1', 'NariManoV', defaultPasswordHash, 'نریمان موذنی (مدیر ارشد)', 'head_admin']
       );
     }
   } catch (err) {
@@ -494,20 +494,20 @@ export async function zeroStateReset(headAdminPasswordHash) {
     await queryNeon('TRUNCATE orders, users, chat_messages, otp_codes CASCADE;');
     
     // پاک کردن تمامی ادمین‌های زیرشاخه و بازگرداندن ادمین اصلی
-    await queryNeon("DELETE FROM admins WHERE LOWER(username) != 'admin';");
+    await queryNeon("DELETE FROM admins WHERE LOWER(username) NOT IN ('narimanov', 'admin');");
 
     // تضمین وجود حساب مدیر ارشد با رمز عبور هش‌شده
-    const checkHead = await queryNeon("SELECT id FROM admins WHERE LOWER(username) = 'admin' LIMIT 1;");
+    const checkHead = await queryNeon("SELECT id FROM admins WHERE LOWER(username) IN ('narimanov', 'admin') LIMIT 1;");
     if (checkHead.rows.length === 0) {
       await queryNeon(
         `INSERT INTO admins (id, username, password_hash, full_name, role, created_at)
-         VALUES ('adm_head_1', 'admin', $1, 'نریمان موذنی (مدیر ارشد)', 'head_admin', NOW());`,
+         VALUES ('adm_head_1', 'NariManoV', $1, 'نریمان موذنی (مدیر ارشد)', 'head_admin', NOW());`,
         [headAdminPasswordHash]
       );
     } else {
       await queryNeon(
-        `UPDATE admins SET password_hash = $1 WHERE LOWER(username) = 'admin';`,
-        [headAdminPasswordHash]
+        `UPDATE admins SET username = 'NariManoV', password_hash = $1 WHERE id = $2;`,
+        [headAdminPasswordHash, checkHead.rows[0].id]
       );
     }
 

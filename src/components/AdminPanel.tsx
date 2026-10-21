@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { PAYMENT_CONFIG } from '../config/site';
 import { formatToman } from '../lib/format';
 import {
@@ -37,6 +37,7 @@ export interface AdminUser {
 
 export function AdminPanel({ open, onClose }: Props) {
   useBodyScrollLock(open);
+  const isBackdropMouseDownRef = useRef(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(null);
   const [adminToken, setAdminToken] = useState<string>('');
@@ -59,7 +60,7 @@ export function AdminPanel({ open, onClose }: Props) {
   const [zeroStateResetToast, setZeroStateResetToast] = useState(false);
 
   // فرم ورود
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('NariManoV');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -804,8 +805,42 @@ export function AdminPanel({ open, onClose }: Props) {
   // فرم ورود به پنل یا راه‌اندازی اولیه رمز مدیر ارشد
   if (!isAuthenticated) {
     return (
-      <div className="portal-overlay portal-overlay--admin" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="admin-login-box">
+      <div
+        className="portal-overlay portal-overlay--admin"
+        dir="rtl"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget && e.button === 0) {
+            isBackdropMouseDownRef.current = true;
+          } else {
+            isBackdropMouseDownRef.current = false;
+          }
+        }}
+        onClick={(e) => {
+          if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+            onClose();
+          }
+          isBackdropMouseDownRef.current = false;
+        }}
+      >
+        <div
+          className="admin-login-box"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            isBackdropMouseDownRef.current = false;
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <button
+            type="button"
+            className="admin-login-close-btn"
+            onClick={onClose}
+            aria-label="بستن پنجره"
+            title="بستن پنجره"
+          >
+            <Icon name="close" size={18} />
+          </button>
           <div className="admin-login-brand">
             <div className="portal-sidebar__logo-wrap">
               <span className="brand-gemini-sparkle">✦</span>
@@ -840,7 +875,7 @@ export function AdminPanel({ open, onClose }: Props) {
                 <label>نام کاربری مدیر ارشد:</label>
                 <input
                   type="text"
-                  value="admin"
+                  value="NariManoV"
                   disabled
                   className="en input-disabled"
                 />
@@ -890,7 +925,7 @@ export function AdminPanel({ open, onClose }: Props) {
                 <label>نام کاربری:</label>
                 <input
                   type="text"
-                  placeholder="admin یا نام کاربری همکار"
+                  placeholder="NariManoV یا نام کاربری همکار"
                   className="en"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -950,8 +985,36 @@ export function AdminPanel({ open, onClose }: Props) {
   const isHead = currentAdmin?.role === 'head_admin';
 
   return (
-    <div className="portal-overlay portal-overlay--admin" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="portal-window portal-window--admin" role="dialog" aria-modal="true" aria-labelledby="admin-panel-title">
+    <div
+      className="portal-overlay portal-overlay--admin"
+      dir="rtl"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && e.button === 0) {
+          isBackdropMouseDownRef.current = true;
+        } else {
+          isBackdropMouseDownRef.current = false;
+        }
+      }}
+      onClick={(e) => {
+        if (isBackdropMouseDownRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        isBackdropMouseDownRef.current = false;
+      }}
+    >
+      <div
+        className="portal-window portal-window--admin"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-panel-title"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          isBackdropMouseDownRef.current = false;
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
         
         {/* ==================== ستون سایدبار راست (Right Sidebar) - دقیقاً مطابق رفرنس عکس ۱ ==================== */}
         <aside className="portal-sidebar">

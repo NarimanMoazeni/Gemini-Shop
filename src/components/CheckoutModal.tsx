@@ -268,7 +268,14 @@ export function CheckoutModal({ product, open, onClose, onTrackOrder, onOpenProf
 
   return (
     <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="modal__card modal__card--wide" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+      <div
+        className="modal__card modal__card--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="checkout-title"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button className="modal__close" onClick={close} aria-label="بستن">
           <Icon name="close" size={20} />
         </button>
