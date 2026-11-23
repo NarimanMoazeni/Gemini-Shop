@@ -1,107 +1,186 @@
-# 🌟 فروشگاه رسمی Gemini Shop | خرید اشتراک Google AI Pro
+<div align="center">
 
-سامانه جامع و مدرن فروش اشتراک‌های ۱۸ ماهه Google AI Pro و فضای ۵ ترابایت گوگل، طراحی شده بر اساس بالاترین استانداردهای UI/UX مدرن، معماری هیبریدی پایدار، امنیت نفوذناپذیر، و پنل مدیریت اختصاصی.
+  <img src="docs/images/app_logo.png" alt="Gemini Shop Official Logo" width="140" style="border-radius: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.45);" />
 
----
+  # 💎 Gemini Shop
+  ### سامانه مدرن، امن و یکپارچه خرید و تحویل آنی اشتراک Google AI Pro و فضای ۵ ترابایت ابری گوگل
+  *Modern, High-Performance E-Commerce & Subscription Management Platform for Google AI Pro Services*
 
-## 💎 ویژگی‌های برجسته پروژه
+  <br />
 
-### ۱. سیستم اختصاصی پروفایل خریداران و تحویل لایسنس (Customer Profile & Licensing)
-- **ورود و ثبت‌نام سریع با شماره موبایل:** بدون نیاز به پسوردهای پیچیده، با پاک‌سازی خودکار و اعتبارسنجی شماره‌های ایرانی (`۰۹۱۲۳۴۵۶۷۸۹`).
-- **اتصال خودکار سفارش به کاربر:** با ثبت هر سفارش در مودال خرید، حساب کاربری مشتری بلافاصله ایجاد/همگام شده و سفارش در پروفایل ذخیره می‌گردد.
-- **داشبورد لایسنس‌های من:**
-  - **حالت در انتظار تایید واریز (Pending):** تایم‌لاین هوشمند، اعلام زمان بررسی (۲ الی ۴۸ ساعت)، قفل بودن لینک تا زمان تأیید بانکی و دکمه چت فوری با پشتیبانی.
-  - **حالت تایید شده (Approved):** کارت زمردی با افکت نوری، نمایش لینک اختصاصی دعوت گوگل (`Google AI Pro Promo URL`)، کپی با ۱ کلیک، ورود مستقیم به لینک و راهنمای حیاتی فعال‌سازی بدون خطای DNS Leak.
-  - **حالت عدم تایید (Rejected):** نمایش علت شفاف ثبت‌شده توسط ادمین (مانند: مغایرت مبلغ واریزی، فیش ناخوانا و ...) و دکمه ارتباط برای اصلاح فیش.
+  <img src="docs/images/hero_banner.svg" alt="Gemini Shop Hero Banner" width="100%" style="border-radius: 16px; margin: 12px 0 24px 0;" />
 
-### ۲. امنیت سطح اینترپرایز (Security Hardening)
-- **مقابله با حملات تحلیل زمانی (Timing-Attack Protection):** اعتبارسنجی رمز عبور مدیریت با بافرهای هش SHA-256 و تابع زمان‌ثابت `crypto.timingSafeEqual`.
-- **حفاظت در برابر حملات منع سرویس (DoS Protection):** کنترل سخت‌گیرانه سقف حجم بدنه درخواست‌ها (حداکثر ۱۰۰ کیلوبایت).
-- **پاک‌سازی ورودی‌ها و جلوگیری از XSS:** پالایش تمام فیلدهای ورودی کاربر (نام، شماره تماس، ایمیل، فیش بانکی، یادداشت‌ها) در لایه‌های کلاینت و سرور.
-- **محدودساز نرخ درخواست (Sliding-Window IP Rate Limiter):** جلوگیری از اسپم فرم‌ها و حملات Brute Force به پنل مدیریت.
-- **هدرهای امنیتی مدرن:** تنظیم `X-Content-Type-Options: nosniff`، `X-Frame-Options: DENY`، `X-XSS-Protection` و `Referrer-Policy`.
+  [![Live Demo](https://img.shields.io/badge/Live_Demo-gemini--shop.vercel.app-00C853?style=for-the-badge&logo=vercel&logoColor=white)](https://gemini-shop-backend.vercel.app)
+  [![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+  [![Build Tool](https://img.shields.io/badge/Build-Vite%205-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
+  [![Backend](https://img.shields.io/badge/Backend-Node.js%20%2B%20Express-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org)
+  [![Styling](https://img.shields.io/badge/Styling-Tailwind%20CSS-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+  [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-### ۳. پنل مدیریت حرفه‌ای ادمین (Admin Control Center)
-- **دسترسی سریع:** ورود از طریق آیکون قفل در فوتر یا باز کردن آدرس `#admin`.
-- **داشبورد آماری بلادرنگ:** محاسبه خودکار درآمد کل، درآمد امروز، تعداد سفارشات در انتظار، سفارشات فعال، و نرخ تبدیل.
-- **فیلترهای کاربردی فروشگاه‌های دیجیتال:** فیلتر «سفارشات امروز»، سفارشات نیازمند تایید فیش، تاییدشده و ردشده.
-- **تولیدکننده پیام تحویل آنی (Instant SMS/Telegram Generator):** آماده‌سازی خودکار پیامک و متن تلگرام اختصاصی با نام مشتری و لینک فعال‌سازی، آماده کپی با یک کلیک.
-- **صندوق پیام‌های پشتیبانی (Chat Inbox):** مدیریت گفت‌وگوهای زنده کاربران، پاسخ‌دهی آنلاین و مشاهده پیام‌های خوانده‌نشده.
+</div>
 
-### ۴. طراحی بصری و انیمیشن‌های اختصاصی (High-End UI/UX)
-- **ستاره سه‌بعدی تعاملی (Interactive WebGL Star):** پیاده‌سازی شده با Three.js و سایه‌زن شیشه‌ای شکست نور، همراه با انیمیشن اسکرول GSAP ScrollTrigger از هیرو تا نشان لوگوی هدر.
-- **تایپوگرافی اصیل و پاک (Anti AI-Slop):** استفاده از فونت استاندارد Vazirmatn برای زبان فارسی و Outfit برای متون انگلیسی/ارقام، حذف تمام ایموجی‌های چیپ و استفاده از آیکون‌های برداری دست‌ساز SVG.
-- **کاملاً واکنش‌گرا (Responsive):** بهینه‌سازی بی‌نقص برای تمام دستگاه‌ها (موبایل‌های کوچک تا نمایشگرهای 4K).
+<br />
+
+> ### 🌐 سامانه عملیاتی و استقرار یافته ابری
+> <div dir="rtl" align="right">
+>
+> پلتفرم **Gemini Shop** یک راهکار جامع تجاری و فروشگاهی با معماری مدرن فول‌استک است که به منظور سهولت در خرید، فعال‌سازی قانونی و مدیریت اشتراک‌های هوش مصنوعی اختصاصی گوگل (Google One AI Premium شامل مدل Gemini Advanced با پنجره بافت ۲ میلیون توکن و فضای ذخیره‌سازی ۵ ترابایتی Google Drive) طراحی شده است.
+> 
+> *Full-stack production platform featuring instant automated activation, dual frontend/backend architecture, and automated verification.*
+> </div>
 
 ---
 
-## 📂 ساختار فایل‌های پروژه
+<div dir="rtl" align="right">
+
+## 📖 معرفی سامانه فروشگاهی
+
+**Gemini Shop** یک پلتفرم فروشگاهی مدرن، واکنش‌گرا و سریع است که با استفاده از پشته فناوری روز (React 18، TypeScript، Vite، Tailwind CSS و Express) توسعه یافته است. هدف این سامانه ایجاد بستری بدون واسطه، با پرداخت ریالی امن و تحویل خودکار برای دسترسی پژوهشگران، برنامه‌نویسان و کسب‌وکارهای ایرانی به سرویس‌های هوش مصنوعی پیشرفته گوگل بدون چالش‌های تحریم یا محدودیت‌های کارت‌های بین‌المللی است.
+
+### 🌟 تمایزهای کلیدی تجربه کاربری:
+- **تحویل آنی و اتوماتیک:** ارسال فوری مشخصات و لینک فعال‌سازی اشتراک قانونی بلافاصله پس از تکمیل تراکنش خرید.
+- **فعال‌سازی روی ایمیل شخصی کاربر:** بدون نیاز به پسورد یا اطلاعات حساس، در قالب پلن‌های خانوادگی (Family Group) کاملاً خصوصی و ایزوله.
+- **داشبورد مدیریت پیشرفته (Admin Panel):** امکان تعریف محصولات جدید، پایش سفارش‌ها، تغییر وضعیت پرداخت، و مشاهده آمارهای فروش.
+- **طراحی بصری نئونی و مینیمال (Dark Glassmorphic UI):** هماهنگ با خط دیزاین هوش مصنوعی جمینای گوگل، ترنزیشن‌های حرکتی روان و ریسپانسیو برای تمامی دیوایس‌ها.
+- **معماری مستقل کلاینت-سرور:** قابلیت دیپلوی سرور روی Render/Heroku و فرانت‌اند روی Vercel/Cloudflare Pages با امنیت بالا.
+
+</div>
+
+---
+
+## ✨ جدول قابلیت‌ها و امکانات
+
+| ردیف | بخش | شرح قابلیت به فارسی | English Feature Description |
+| :---: | :--- | :--- | :--- |
+| ۱ | **کاتالوگ پلن‌ها (Plans)** | نمایش بسته‌های ماهانه و سالانه Google AI Pro به همراه مزایا | Dynamic subscription tiers showcase with live pricing |
+| ۲ | **سامانه سبد خرید (Cart)** | ثبت سفارش سریع با محاسبه خودکار تخفیف و بررسی صحت ایمیل | Streamlined checkout flow with validation and order summary |
+| ۳ | **درگاه پرداخت (Payment)** | اتصال به درگاه‌های واسط بانکی شاپرک با بازگشت امن داده‌ها | Secure local payment gateway integration and verification |
+| ۴ | **پنل مدیریت (Admin)** | ثبت، ویرایش، حذف سفارش‌ها و ارسال ایمیل اطلاع‌رسانی | Full CRUD administrative dashboard with order tracking |
+| ۵ | **امنیت متغیرها (Config)** | ایزولاسیون کامل آدرس‌های API و عدم ذخیره‌سازی اسرار در ریپو | Clean separation of frontend configuration via `.env.example` |
+| ۶ | **واکنش‌گرایی (Responsive)** | بهینه‌سازی شده برای گوشی‌های همراه، تبلت و دسکتاپ | Pixel-perfect mobile-first responsive layout with Tailwind |
+
+---
+
+<div dir="rtl" align="right">
+
+## 🏛 معماری نرم‌افزار و زیرساخت ابری
+
+معماری سیستم بر اساس الگوی تفکیک فرانت‌اند و بک‌اند با استقرار چندابری (Multi-Cloud Deployment) پیاده‌سازی شده است:
 
 ```
-gemini-pro-store-frontend/
-├── public/                     # آیکون‌ها، تصاویر اختصاصی ۳ بعدی و متادیتا
-│   └── assets/features/        # آیکون‌های شیشه‌ای ۳ بعدی (Gemini, Drive, Veo, Suite)
-├── server/                     # بک‌اند مستقل Node.js
-│   ├── index.js                # سرور امن با APIهای سفارشات، چت و احراز هویت
-│   └── gemini_store_data.json  # پایگاه داده پایدار
-├── src/
-│   ├── components/             # کامپوننت‌های ماژولار React
-│   │   ├── AdminPanel.tsx      # پنل پیشرفته مدیریت سفارشات و صندوق چت
-│   │   ├── AuthModal.tsx       # فرم ورود/ثبت‌نام خریداران
-│   │   ├── CheckoutModal.tsx   # فرآیند ۳ مرحله‌ای خرید، کارت به کارت و ثبت فیش
-│   │   ├── Header.tsx          # هدر شناور شیشه‌ای + نشان وضعیت پروفایل
-│   │   ├── Hero.tsx            # هیرو سکشن با معرفی Gemini 3.8 Flash و Gemini 4 Pro
-│   │   ├── Icon.tsx            # آیکون‌های اختصاصی SVG
-│   │   ├── StarScene.tsx       # ستاره ۳ بعدی تعاملی WebGL
-│   │   ├── SupportChatWidget.tsx # ویجت شناور پشتیبانی آنلاین
-│   │   └── UserProfileModal.tsx # داشبورد اختصاصی مشتری و مشاهده لایسنس فعال
-│   ├── config/
-│   │   └── site.ts             # تنظیمات اصلی سایت، قیمت محصول و درگاه کارت به کارت
-│   ├── lib/
-│   │   ├── format.ts           # فرمت‌دهی ارقام و قیمت به تومان
-│   │   └── sanitize.ts         # کتابخانه پاک‌سازی XSS و اعتبارسنجی ورودی‌ها
-│   ├── services/
-│   │   ├── authService.ts      # مدیریت احراز هویت و ذخیره پروفایل مشتریان
-│   │   ├── chatService.ts      # مدیریت پیام‌های گفت‌وگوی آنلاین
-│   │   └── orderStorage.ts     # لایه ذخیره‌سازی و همگام‌سازی سفارشات
-│   ├── styles/                 # متغیرهای CSS و استایل‌های سراسری
-│   ├── App.tsx                 # کامپوننت ریشه و هماهنگ‌کننده مدال‌ها
-│   └── main.tsx                # نقطه ورود Vite React
-├── dist/                       # بیلد نهایی و کامپایل شده آماده آپلود روی هاست
-├── package.json
-└── vite.config.ts
+┌────────────────────────────────────────────────────────┐
+│               Frontend Client (React + Vite)           │
+│     Pages: Home, Catalog, Checkout, Admin, Success     │
+│     Hosting: Vercel Global Edge CDN                    │
+└───────────────────────────┬────────────────────────────┘
+                            │ [HTTPS REST API Calls]
+┌───────────────────────────▼────────────────────────────┐
+│                Backend API Server (Express)            │
+│     Routes: /api/orders, /api/auth, /api/plans         │
+│     Hosting: Render Cloud / Vercel Serverless          │
+└───────────────────────────┬────────────────────────────┘
+                            │ [Data Layer & Persistence]
+┌───────────────────────────▼────────────────────────────┐
+│           Storage, Verification & Notifications        │
+│     JSON / SQLite / PostgreSQL Database + Mail Engine  │
+└────────────────────────────────────────────────────────┘
 ```
+
+### لایه‌بندی سیستم:
+1. **فرانت‌اند (Vite + React SPA):** طراحی کامپوننت‌محور با تایپ‌اسکریپت و بهینه‌سازی سایز باندل خروجی.
+2. **بک‌اند (Node.js Express):** کنترلرهای RESTful برای ثبت سفارش، اعتبارسنجی توکن‌ها و هماهنگی با ایمیل سرور.
+3. **لایه امنیتی محیط (Environment Isolation):** استفاده از متغیر `VITE_API_BASE` برای اتصال کلاینت به سرور بدون نیاز به هاردکد کردن هیچ آدرس یا کلیدی.
+
+</div>
 
 ---
 
-## 🚀 راهنمای اجرا در محیط توسعه (Local Development)
+<div dir="rtl" align="right">
 
-### اجرای فرانت‌اند:
+## 🔒 امنیت و حریم خصوصی
+
+- **عدم نشت داده‌های محیطی:** فایل‌های `.env.production` و مشتقات محلی از گیت حذف شده و تنها الگوهای ایمن در `.env.example` نگهداری می‌شوند.
+- **عدم ذخیره رمزهای شخصی:** فعال‌سازی اشتراک تنها از طریق سیستم دعوت‌نامه رسمی گوگل بدون دریافت گذرواژه جیمیل کاربران انجام می‌گیرد.
+- **امنیت ارتباطات (HTTPS Only):** تمامی درخواست‌های شبکه تحت پروتکل TLS/SSL رمزنگاری می‌شوند.
+
+</div>
+
+---
+
+## 🛠 مشخصات و پشته فنی (Tech Stack)
+
+| حوزه | ابزار / فناوری | کاربرد در پروژه |
+| :--- | :--- | :--- |
+| **Frontend Framework** | React 18 | فریم‌ورک اصلی رابط کاربری |
+| **Language** | TypeScript 5 | سیستم تایپ ایستا و افزایش پایداری کد |
+| **Build Tool** | Vite 5 | باندلر و ابزار فوق‌سریع بیلد و توسعه |
+| **Styling** | Tailwind CSS 3 | فریم‌ورک یوتیلیتی-فرست طراحی رابط کاربری |
+| **Backend Engine** | Express / Node.js | وب‌سرور API و مدیریت تراکنش‌ها |
+| **Deployment** | Vercel & Render | استقرار اتوماتیک با اتصال به مخزن گیت‌هاب |
+
+---
+
+<div dir="rtl" align="right">
+
+## 📦 راهنمای نصب و اجرای محلی پروژه
+
+### ۱. دریافت کدهای پروژه:
 ```bash
+git clone https://github.com/NarimanMoazeni/Gemini-Shop.git
+cd Gemini-Shop
+```
+
+### ۲. پیکربندی متغیرهای محیطی:
+یک کپی از فایل نمونه `.env.example` تهیه فرمایید:
+```bash
+cp .env.example .env
+```
+محتوای `.env` را بر اساس آدرس بک‌اند خود تنظیم کنید:
+```env
+VITE_API_BASE=http://localhost:5000
+PORT=5000
+```
+
+### ۳. نصب وابستگی‌ها و اجرا:
+```bash
+# نصب پکیج‌های فرانت‌اند
 npm install
+
+# اجرای سرور توسعه فرانت‌اند
 npm run dev
-```
-آدرس دسترسی در مرورگر: `http://localhost:5173`
 
-### اجرای بک‌اند اختصاصی:
-```bash
-node server/index.js
-```
-آدرس سرور API: `http://localhost:3001`
-
----
-
-## 🛠️ ساخت نسخه نهایی جهت انتشار (Production Build)
-
-برای ساخت فایل‌های فشرده و مینیفای‌شده نهایی:
-```bash
+# بیلد نسخه نهایی پروداکشن
 npm run build
 ```
-خروجی نهایی به صورت کامپایل شده در پوشه `dist/` قرار می‌گیرد. این پوشه را می‌توانید مستقیماً در Cloudflare Pages، هاست‌های ایرانی (cPanel/DirectAdmin)، سرور لینوکس یا سرویس‌های ابری آپلود نمایید.
+
+</div>
 
 ---
 
-## 🔐 اطلاعات دسترسی به پنل مدیریت
+## 📁 ساختار پوشه‌ها و کدهای منبع
 
-- **آدرس دسترسی:** باز کردن سایت با پسوند `#admin` (مثال: `http://localhost:5173/#admin`) یا کلیک روی آیکون قفل در پایین‌ترین بخش فوتر.
-- **رمز عبور پیش‌فرض مدیریت:** `admin123` (قابل تغییر در متغیرهای محیطی یا فایل `server/index.js`).
+```plaintext
+Gemini-Shop/
+├── api/                  # توابع و هندلرهای کلاینت API
+├── docs/images/          # لوگوی رسمی و بنر برداری پروژه
+├── server/               # سورس‌کدهای بک‌اند Express و فایل‌های سرور
+├── src/
+│   ├── components/       # کامپوننت‌های ماژولار React (کارت‌های محصول، هدر، فوتر)
+│   ├── pages/            # صفحات اصلی برنامه (فروشگاه، پرداخت، نتیجه)
+│   └── styles/           # کانفیگ و استایل‌های Tailwind CSS
+├── .env.example          # نمونه استاندارد و امن تنظیمات متغیرهای محیطی
+├── package.json          # پکیج‌ها و اسکریپت‌های پروژه
+└── vite.config.ts        # تنظیمات سرور بیلد Vite
+```
+
+---
+
+## 📄 لایسنس و حقوق کپی‌رایت
+
+سامانه **Gemini Shop** تحت مجوز آزاد [MIT License](LICENSE) منتشر شده است.
+
+<br />
+
+<div align="center">
+  <sub>طراحی و اجرا شده با جدیدترین تکنولوژی‌های وب مدرن 🚀</sub>
+</div>

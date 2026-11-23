@@ -1,0 +1,107 @@
+<svg width="1280" height="420" viewBox="0 0 1280 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080D1A" />
+      <stop offset="50%" stop-color="#0E172E" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+    <linearGradient id="cyanSparkle" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#818CF8" />
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.08)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0.02)" />
+    </linearGradient>
+    <radialGradient id="cyanGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0284C7" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0" />
+    </radialGradient>
+    <filter id="fBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="70" />
+    </filter>
+  </defs>
+
+  <rect width="1280" height="420" rx="20" fill="url(#gBg)" />
+  <circle cx="250" cy="120" r="220" fill="url(#cyanGlow)" filter="url(#fBlur)" />
+  <circle cx="1050" cy="280" r="240" fill="url(#cyanGlow)" filter="url(#fBlur)" />
+
+  <!-- Subtle Perspective Grid -->
+  <g opacity="0.08" stroke="#FFFFFF" stroke-width="1">
+    <path d="M0 80H1280 M0 160H1280 M0 240H1280 M0 320H1280" />
+    <path d="M180 0V420 M360 0V420 M540 0V420 M720 0V420 M900 0V420 M1080 0V420" />
+  </g>
+
+  <!-- Left Content Block -->
+  <g transform="translate(100, 110)">
+    <!-- Pill Badge -->
+    <rect x="0" y="0" width="240" height="34" rx="17" fill="rgba(56, 189, 248, 0.12)" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.5" />
+    <circle cx="16" cy="17" r="5" fill="#38BDF8" />
+    <text x="30" y="22" font-family="-apple-system, sans-serif" font-size="12" font-weight="700" fill="#E0F2FE" letter-spacing="1">GOOGLE AI PRO SUBSCRIPTIONS</text>
+
+    <!-- Main Title -->
+    <text x="0" y="80" font-family="-apple-system, sans-serif" font-size="48" font-weight="800" fill="#FFFFFF" letter-spacing="-1">
+      Gemini <tspan fill="url(#cyanSparkle)">Shop</tspan> Platform
+    </text>
+
+    <!-- Tagline -->
+    <text x="0" y="118" font-family="-apple-system, sans-serif" font-size="18" font-weight="400" fill="#94A3B8">
+      سامانه مدرن خرید اشتراک پریمیوم Google AI Pro و فضای ۵ ترابایت ابری
+    </text>
+
+    <!-- Feature Pills -->
+    <g transform="translate(0, 145)">
+      <rect x="0" y="0" width="130" height="32" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" />
+      <text x="14" y="21" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#38BDF8">⚡ Instant Delivery</text>
+
+      <rect x="140" y="0" width="130" height="32" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" />
+      <text x="154" y="21" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#34D399">☁️ 5TB Cloud Storage</text>
+
+      <rect x="280" y="0" width="130" height="32" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" />
+      <text x="294" y="21" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#FBBF24">🔒 100% Legal & Safe</text>
+    </g>
+  </g>
+
+  <!-- Right Visual: Luxury Subscription Card Visual -->
+  <g transform="translate(760, 55)">
+    <rect width="420" height="310" rx="20" fill="url(#cardGrad)" stroke="rgba(56, 189, 248, 0.25)" stroke-width="1.5" />
+    
+    <!-- Header of Card -->
+    <rect width="420" height="46" rx="20" fill="rgba(255,255,255,0.04)" />
+    <circle cx="26" cy="23" r="5" fill="#EF4444" opacity="0.8" />
+    <circle cx="43" cy="23" r="5" fill="#F59E0B" opacity="0.8" />
+    <circle cx="60" cy="23" r="5" fill="#10B981" opacity="0.8" />
+    <text x="210" y="28" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#94A3B8">gemini-shop.vercel.app</text>
+
+    <!-- Plan Display Inside Card -->
+    <g transform="translate(30, 70)">
+      <rect width="360" height="135" rx="14" fill="rgba(14, 23, 46, 0.6)" stroke="rgba(56, 189, 248, 0.3)" />
+      
+      <!-- Sparkle Icon -->
+      <path d="M40 35L44 48L57 52L44 56L40 69L36 56L23 52L36 48Z" fill="#38BDF8" />
+      
+      <text x="70" y="48" font-family="-apple-system, sans-serif" font-size="18" font-weight="700" fill="#FFFFFF">Google AI Pro + 5TB Cloud</text>
+      <text x="70" y="70" font-family="-apple-system, sans-serif" font-size="12" fill="#94A3B8">Gemini 1.5 Pro / Advanced • 2M Context Window</text>
+
+      <!-- Badge within plan -->
+      <rect x="70" y="85" width="105" height="24" rx="6" fill="url(#badgeGrad)" />
+      <text x="80" y="101" font-family="-apple-system, sans-serif" font-size="11" font-weight="700" fill="#000000">OFFICIAL TARIFF</text>
+
+      <text x="325" y="102" text-anchor="end" font-family="-apple-system, sans-serif" font-size="20" font-weight="800" fill="#38BDF8">تضمین ۱۰۰٪</text>
+    </g>
+
+    <!-- Order Processing Pipeline Simulation -->
+    <g transform="translate(30, 225)">
+      <rect width="360" height="55" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)" />
+      <circle cx="30" cy="28" r="10" fill="#10B981" />
+      <path d="M26 28L29 31L35 25" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="50" y="26" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#F1F5F9">تحویل فوری اشتراک بر روی ایمیل شخصی</text>
+      <text x="50" y="44" font-family="-apple-system, sans-serif" font-size="11" fill="#64748B">Instant Activation • Family Plan Activation Protocol</text>
+    </g>
+  </g>
+</svg>
