@@ -36,3 +36,8 @@ server/*.tmp*
 # Release zip archives
 *.zip
 
+
+# Environment files
+.env
+.env.*
+!.env.example
